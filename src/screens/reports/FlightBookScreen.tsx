@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert, TextStyle } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -66,13 +66,14 @@ export const FlightBookScreen = () => {
         </html>
       `;
 
-            const { uri } = await Print.printToFileAsync({ html });
-            const targetPath = `${FileSystem.documentDirectory}Libro_Vuelos.pdf`;
-            await FileSystem.moveAsync({ from: uri, to: targetPath });
-            Alert.alert('Exported', `Saved to: ${targetPath}`);
-            if (await Sharing.isAvailableAsync()) {
-                await Sharing.shareAsync(targetPath);
-            }
+			const { uri } = await Print.printToFileAsync({ html });
+			const destFile = new FileSystem.File(FileSystem.Paths.document, 'Libro_Vuelos.pdf');
+			const srcFile = new FileSystem.File(uri);
+			srcFile.move(destFile);
+			Alert.alert('Exported', `Saved to: ${destFile.uri}`);
+			if (await Sharing.isAvailableAsync()) {
+				await Sharing.shareAsync(destFile.uri);
+			}
         } catch (error) {
             console.error(error);
             Alert.alert('Error', 'Failed to export PDF');
@@ -120,7 +121,8 @@ const styles = StyleSheet.create({
         marginBottom: spacing.m,
     },
     title: {
-        ...typography.h2,
+		...(typography.h2 as TextStyle),
+		fontWeight: '600' as TextStyle['fontWeight'],
     },
     row: {
         flexDirection: 'row',
@@ -134,11 +136,10 @@ const styles = StyleSheet.create({
     },
     cell: {
         padding: spacing.s,
-        color: colors.text,
         ...typography.body,
     },
     headerCell: {
-        fontWeight: '600',
+		fontWeight: '600' as TextStyle['fontWeight'],
         color: colors.textSecondary,
     },
 });

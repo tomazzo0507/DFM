@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextStyle } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { Button } from '../../components/ui/Button';
@@ -137,8 +137,11 @@ export const HomeScreen = ({ navigation }: any) => {
                     <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('PilotManagement')}>
                         <Text style={styles.gridText}>Pilots</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('Logbook')}>
-                        <Text style={styles.gridText}>Logbooks</Text>
+                    <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('OperationalLogbook')}>
+                        <Text style={styles.gridText}>Bitácora Operativa</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('TestLogbook')}>
+                        <Text style={styles.gridText}>Bitácora Ensayo</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('FlightBook')}>
                         <Text style={styles.gridText}>Flight Books</Text>
@@ -159,18 +162,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loadingText: {
-        ...typography.body,
+        ...(typography.body as TextStyle),
         color: colors.textSecondary,
     },
     header: {
         marginBottom: spacing.l,
     },
     title: {
-        ...typography.h1,
+        ...(typography.h1 as TextStyle),
         color: colors.primary,
     },
     subtitle: {
-        ...typography.h3,
+        ...(typography.h3 as TextStyle),
         color: colors.textSecondary,
         marginTop: spacing.xs,
     },
@@ -183,7 +186,7 @@ const styles = StyleSheet.create({
         borderColor: colors.success,
     },
     activeFlightTitle: {
-        ...typography.h3,
+        ...(typography.h3 as TextStyle),
         color: colors.success,
         textAlign: 'center',
         marginBottom: spacing.s,
@@ -197,12 +200,12 @@ const styles = StyleSheet.create({
         borderColor: colors.error,
     },
     warningTitle: {
-        ...typography.h3,
+        ...(typography.h3 as TextStyle),
         color: colors.error,
         marginBottom: spacing.s,
     },
     warningText: {
-        ...typography.body,
+        ...(typography.body as TextStyle),
         color: colors.error,
         marginBottom: 4,
     },
@@ -218,11 +221,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     statLabel: {
-        ...typography.caption,
+        ...(typography.caption as TextStyle),
         marginBottom: spacing.xs,
     },
     statValue: {
-        ...typography.h2,
+        ...(typography.h2 as TextStyle),
         color: colors.text,
     },
     statDivider: {
@@ -231,7 +234,7 @@ const styles = StyleSheet.create({
         marginHorizontal: spacing.m,
     },
     sectionTitle: {
-        ...typography.h3,
+        ...(typography.h3 as TextStyle),
         marginBottom: spacing.m,
         marginTop: spacing.m,
     },
@@ -255,7 +258,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
     },
     gridText: {
-        ...typography.button,
+        ...(typography.button as TextStyle),
         color: colors.text,
     },
 });

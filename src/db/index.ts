@@ -11,6 +11,8 @@ export const initDatabase = () => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         code TEXT NOT NULL UNIQUE,
+        part_num TEXT,
+        serial_num TEXT,
         motors TEXT NOT NULL,
         batteries_main TEXT NOT NULL,
         batteries_spare TEXT NOT NULL,
@@ -56,6 +58,9 @@ export const initDatabase = () => {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);
+        // Best-effort migrations for older installs
+        try { db.execSync(`ALTER TABLE aircraft ADD COLUMN part_num TEXT;`); } catch {}
+        try { db.execSync(`ALTER TABLE aircraft ADD COLUMN serial_num TEXT;`); } catch {}
         console.log('Database initialized successfully');
     } catch (error) {
         console.error('Error initializing database:', error);

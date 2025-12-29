@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextStyle } from 'react-native';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { Button } from '../../components/ui/Button';
 import { colors, spacing, typography } from '../../theme';
@@ -16,7 +16,7 @@ export const ChecklistScreen = ({ navigation, route }: any) => {
         const autoCheckForPostFlight = async () => {
             if (stage !== 'PostFlight' || !flightId) return;
             try {
-                const row = await db.getFirstAsync('SELECT pdf_path FROM flights WHERE id = ?', [flightId]);
+                const row: any = await db.getFirstAsync('SELECT pdf_path FROM flights WHERE id = ?', [flightId]);
                 if (row && row.pdf_path) {
                     const initial = new Array(items.length).fill(false);
                     // Auto-check the "Reporte de vuelo correctamente guardado en Bitácora" if exists as last item
@@ -86,11 +86,11 @@ const styles = StyleSheet.create({
         marginBottom: spacing.l,
     },
     title: {
-        ...typography.h2,
+        ...(typography.h2 as TextStyle),
         color: colors.primary,
     },
     subtitle: {
-        ...typography.h3,
+        ...(typography.h3 as TextStyle),
         color: colors.textSecondary,
     },
     list: {
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.surfaceHighlight,
     },
     itemText: {
-        ...typography.body,
+        ...(typography.body as TextStyle),
         marginLeft: spacing.m,
         flex: 1,
     },

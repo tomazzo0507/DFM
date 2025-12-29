@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert, TextStyle } from 'react-native';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,8 +26,10 @@ const cameraSchema = z.object({
 });
 
 const aircraftSchema = z.object({
-    name: z.string().min(1, 'Required'),
-    code: z.string().min(1, 'Required'),
+    name: z.string().trim().min(1, 'Required'),
+    code: z.string().trim().min(1, 'Required'),
+    partNum: z.string().trim().min(1, 'Required'),
+    serialNum: z.string().trim().min(1, 'Required'),
     numMotors: z.string().transform((val) => parseInt(val, 10) || 0),
     motors: z.array(motorSchema),
     batteriesMain: z.array(batterySchema),
@@ -41,10 +43,12 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
     const [step, setStep] = useState(1);
 
     const { control, handleSubmit, watch, setValue, getValues } = useForm<AircraftFormData>({
-        resolver: zodResolver(aircraftSchema),
+        resolver: zodResolver(aircraftSchema) as any,
         defaultValues: {
             name: '',
             code: '',
+            partNum: '',
+            serialNum: '',
             numMotors: 0,
             motors: [],
             batteriesMain: [],
@@ -96,18 +100,37 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
 
     const onSubmit = async (data: AircraftFormData) => {
         try {
-            // Save to SQLite
-            await db.runAsync(
-                `INSERT INTO aircraft (name, code, motors, batteries_main, batteries_spare, cameras) VALUES (?, ?, ?, ?, ?, ?)`,
-                [
-                    data.name,
-                    data.code,
-                    JSON.stringify(data.motors),
-                    JSON.stringify(data.batteriesMain),
-                    JSON.stringify(data.batteriesSpare),
-                    JSON.stringify(data.cameras),
-                ]
-            );
+            const existing: any = await db.getFirstAsync('SELECT id FROM aircraft LIMIT 1');
+            if (existing?.id) {
+                await db.runAsync(
+                    `UPDATE aircraft SET name = ?, code = ?, part_num = ?, serial_num = ?, motors = ?, batteries_main = ?, batteries_spare = ?, cameras = ? WHERE id = ?`,
+                    [
+                        data.name,
+                        data.code,
+                        data.partNum,
+                        data.serialNum,
+                        JSON.stringify(data.motors),
+                        JSON.stringify(data.batteriesMain),
+                        JSON.stringify(data.batteriesSpare),
+                        JSON.stringify(data.cameras),
+                        existing.id,
+                    ]
+                );
+            } else {
+                await db.runAsync(
+                    `INSERT INTO aircraft (name, code, part_num, serial_num, motors, batteries_main, batteries_spare, cameras) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        data.name,
+                        data.code,
+                        data.partNum,
+                        data.serialNum,
+                        JSON.stringify(data.motors),
+                        JSON.stringify(data.batteriesMain),
+                        JSON.stringify(data.batteriesSpare),
+                        JSON.stringify(data.cameras),
+                    ]
+                );
+            }
             Alert.alert('Success', 'Aircraft registered successfully', [
                 { text: 'OK', onPress: () => navigation.navigate('OwnerSetup') }
             ]);
@@ -139,6 +162,20 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
                             name="code"
                             render={({ field: { onChange, value }, fieldState: { error } }) => (
                                 <Input label="Registration Code" value={value} onChangeText={onChange} error={error?.message} />
+                            )}
+                        />
+                        <Controller
+                            control={control}
+                            name="partNum"
+                            render={({ field: { onChange, value }, fieldState: { error } }) => (
+                                <Input label="Part Number (P/N)" value={value} onChangeText={onChange} error={error?.message} />
+                            )}
+                        />
+                        <Controller
+                            control={control}
+                            name="serialNum"
+                            render={({ field: { onChange, value }, fieldState: { error } }) => (
+                                <Input label="Serial Number (S/N)" value={value} onChangeText={onChange} error={error?.message} />
                             )}
                         />
                         <Controller
@@ -248,7 +285,7 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
 
                         <View style={styles.row}>
                             <Button title="Back" variant="outline" onPress={prevStep} style={{ flex: 1, marginRight: 8 }} />
-                            <Button title="Finish Setup" onPress={handleSubmit(onSubmit)} style={{ flex: 1, marginLeft: 8 }} />
+                            <Button title="Finish Setup" onPress={handleSubmit(onSubmit as any)} style={{ flex: 1, marginLeft: 8 }} />
                         </View>
                     </View>
                 )}
@@ -259,11 +296,11 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
 
 const styles = StyleSheet.create({
     title: {
-        ...typography.h2,
+        ...(typography.h2 as TextStyle),
         marginBottom: spacing.l,
     },
     sectionTitle: {
-        ...typography.h3,
+        ...(typography.h3 as TextStyle),
         marginBottom: spacing.m,
         marginTop: spacing.m,
     },
@@ -274,8 +311,8 @@ const styles = StyleSheet.create({
         marginBottom: spacing.m,
     },
     cardTitle: {
-        ...typography.body,
-        fontWeight: '600',
+        ...(typography.body as TextStyle),
+        fontWeight: '600' as TextStyle['fontWeight'],
         marginBottom: spacing.s,
     },
     row: {

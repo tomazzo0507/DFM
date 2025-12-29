@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert, TextStyle } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -19,9 +19,13 @@ const preFlightSchema = z.object({
     flightEngineer: z.number().optional(),
     batteries: z.array(z.string()).min(1, 'Select at least one battery'),
     camera: z.string().optional(),
-    purpose: z.string().min(1, 'Required'),
-    estimatedTime: z.string().min(1, 'Required'),
-    location: z.string().min(1, 'Required'),
+    date: z.string().trim().min(1, 'Required'),        // DD/MM/AAAA
+    time: z.string().trim().min(1, 'Required'),        // HH:MM
+    coordinates: z.string().trim().min(1, 'Required'),
+    locationGeneral: z.string().trim().min(1, 'Required'),
+    purpose: z.string().trim().min(1, 'Required'),
+    estimatedTime: z.string().trim().min(1, 'Required'),
+    aircraftState: z.string().trim().min(1, 'Required'), // Estado prevuelo
 });
 
 type PreFlightFormData = z.infer<typeof preFlightSchema>;
@@ -35,9 +39,13 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
         resolver: zodResolver(preFlightSchema),
         defaultValues: {
             batteries: [],
+            date: '',
+            time: '',
+            coordinates: '',
+            locationGeneral: '',
             purpose: '',
             estimatedTime: '',
-            location: '',
+            aircraftState: '',
         },
     });
 
@@ -57,6 +65,12 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
                         cameras: JSON.parse((aircraftRes as any).cameras),
                     } as Aircraft);
                 }
+
+                // Prefill date/time defaults
+                const now = new Date();
+                const pad = (n: number) => n.toString().padStart(2, '0');
+                setValue('date', `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`);
+                setValue('time', `${pad(now.getHours())}:${pad(now.getMinutes())}`);
             } catch (error) {
                 console.error(error);
             }
@@ -84,9 +98,13 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
                         camera: data.camera,
                     }),
                     JSON.stringify({
-                        purpose: data.purpose,
-                        estimatedTime: data.estimatedTime,
-                        location: data.location,
+                        fecha: data.date,
+                        hora: data.time,
+                        coordenadas: data.coordinates,
+                        ubicacionGeneral: data.locationGeneral,
+                        proposito: data.purpose,
+                        tiempoEstimado: data.estimatedTime,
+                        estadoPrevuelo: data.aircraftState,
                     }),
                 ]
             );
@@ -99,13 +117,25 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
         }
     };
 
+    const parsedFlightDate = (() => {
+        // date format DD/MM/AAAA
+        const d = watch('date');
+        if (!d) return new Date();
+        const [dd, mm, yyyy] = d.split('/').map((x) => parseInt(x, 10));
+        if (!dd || !mm || !yyyy) return new Date();
+        return new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+    })();
+
     const pilotItems = pilots
-        .filter(p => new Date(p.licenseExpiry) > new Date())
+        .filter(p => {
+            const exp = new Date(p.licenseExpiry);
+            return exp >= parsedFlightDate;
+        })
         .map(p => ({ label: p.name, value: p.id }));
 
     const batteryItems = aircraft ? [
-        ...aircraft.batteriesMain.map(b => ({ label: `Main: ${b.code}`, value: b.id })),
-        ...aircraft.batteriesSpare.map(b => ({ label: `Spare: ${b.code}`, value: b.id })),
+        ...aircraft.batteriesMain.map(b => ({ label: `Main: ${b.code}`, value: b.code })),
+        ...aircraft.batteriesSpare.map(b => ({ label: `Spare: ${b.code}`, value: b.code })),
     ] : [];
 
     const cameraItems = aircraft ? aircraft.cameras.map(c => ({ label: c.code, value: c.id })) : [];
@@ -117,6 +147,20 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
                 <Text style={styles.subtitle}>{type} Flight</Text>
 
                 <Text style={styles.sectionTitle}>General Info</Text>
+                <Controller
+                    control={control}
+                    name="date"
+                    render={({ field: { onChange, value }, fieldState: { error } }) => (
+                        <Input label="Date (DD/MM/AAAA)" value={value} onChangeText={onChange} error={error?.message} />
+                    )}
+                />
+                <Controller
+                    control={control}
+                    name="time"
+                    render={({ field: { onChange, value }, fieldState: { error } }) => (
+                        <Input label="Time (HH:MM)" value={value} onChangeText={onChange} error={error?.message} />
+                    )}
+                />
                 <Controller
                     control={control}
                     name="purpose"
@@ -133,9 +177,23 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
                 />
                 <Controller
                     control={control}
-                    name="location"
+                    name="coordinates"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Location / Coordinates" value={value} onChangeText={onChange} error={error?.message} />
+                        <Input label="Coordinates" value={value} onChangeText={onChange} error={error?.message} />
+                    )}
+                />
+                <Controller
+                    control={control}
+                    name="locationGeneral"
+                    render={({ field: { onChange, value }, fieldState: { error } }) => (
+                        <Input label="General Location" value={value} onChangeText={onChange} error={error?.message} />
+                    )}
+                />
+                <Controller
+                    control={control}
+                    name="aircraftState"
+                    render={({ field: { onChange, value }, fieldState: { error } }) => (
+                        <Input label="Aircraft State (Pre-flight)" value={value} onChangeText={onChange} error={error?.message} multiline numberOfLines={3} style={{ height: 80 }} />
                     )}
                 />
 
@@ -229,16 +287,16 @@ const styles = StyleSheet.create({
         paddingBottom: 40,
     },
     title: {
-        ...typography.h2,
+        ...(typography.h2 as TextStyle),
         color: colors.primary,
     },
     subtitle: {
-        ...typography.h3,
+        ...(typography.h3 as TextStyle),
         color: colors.textSecondary,
         marginBottom: spacing.l,
     },
     sectionTitle: {
-        ...typography.h3,
+        ...(typography.h3 as TextStyle),
         marginTop: spacing.l,
         marginBottom: spacing.m,
     },

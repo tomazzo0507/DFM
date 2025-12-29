@@ -30,13 +30,12 @@ export const SignaturePad = ({ visible, onOK, onCancel, title = 'Sign Here' }: S
         <Modal visible={visible} animationType="slide" transparent>
             <View style={styles.overlay}>
                 <View style={styles.container}>
-                    <Text style={styles.title}>{title}</Text>
+                    <p style={styles.title}>{title}</p>
                     <View style={styles.canvasContainer}>
                         <SignatureCanvas
                             ref={ref}
                             onOK={handleOK}
-                            webStyle={`.m-signature-pad--footer {display: none; margin: 0px;}`}
-                        />
+                            webStyle={`.m-signature-pad--footer {display: none; margin: 0px;}`}/>
                     </View>
                     <View style={styles.buttons}>
                         <Button title="Cancel" variant="outline" onPress={onCancel} style={{ flex: 1, marginRight: 8 }} />

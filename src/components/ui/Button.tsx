@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, TouchableOpacityProps } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, TouchableOpacityProps, TextStyle } from 'react-native';
 import { colors, spacing, typography } from '../../theme';
 
 interface ButtonProps extends TouchableOpacityProps {
@@ -51,6 +51,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.l,
     },
     text: {
-        ...typography.button,
+		...(typography.button as TextStyle),
+		fontWeight: '600' as TextStyle['fontWeight'],
     },
 });

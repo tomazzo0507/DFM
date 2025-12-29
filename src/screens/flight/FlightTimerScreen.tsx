@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, BackHandler, Modal, TextStyle } from 'react-native';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -19,10 +19,13 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
     const [payloadWeight, setPayloadWeight] = useState('');
     const [payloadReleased, setPayloadReleased] = useState(false);
     const [payloadReleaseTime, setPayloadReleaseTime] = useState<string | null>(null);
+    const [payloadReleaseElapsed, setPayloadReleaseElapsed] = useState<number | null>(null);
 
     // Phases State (Test Flight)
     const [currentPhase, setCurrentPhase] = useState<string | null>(null);
     const [phases, setPhases] = useState<any[]>([]);
+    const [abortVisible, setAbortVisible] = useState(false);
+    const [abortReason, setAbortReason] = useState('');
 
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -30,7 +33,7 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
         // Attempt to resume from DB
         const resumeIfNeeded = async () => {
             try {
-                const row = await db.getFirstAsync('SELECT * FROM flights WHERE id = ?', [flightId]);
+                const row: any = await db.getFirstAsync('SELECT * FROM flights WHERE id = ?', [flightId]);
                 if (row) {
                     const carga = row.carga ? JSON.parse(row.carga) : null;
                     if (carga) {
@@ -38,6 +41,7 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                         setPayloadWeight(carga.weight || '');
                         setPayloadReleased(!!carga.released);
                         setPayloadReleaseTime(carga.releaseTime || null);
+                        setPayloadReleaseElapsed(typeof carga.releaseElapsedSeconds === 'number' ? carga.releaseElapsedSeconds : null);
                     }
                     const fases = row.fases ? JSON.parse(row.fases) : [];
                     setPhases(fases);
@@ -119,9 +123,10 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
         </body></html>`;
         const { uri } = await Print.printToFileAsync({ html });
         const fileName = `Flight_${flightId}_ABORTADO.pdf`;
-        const newPath = `${FileSystem.documentDirectory}${fileName}`;
-        await FileSystem.moveAsync({ from: uri, to: newPath });
-        return newPath;
+        const destFile = new FileSystem.File(FileSystem.Paths.document, fileName);
+        const srcFile = new FileSystem.File(uri);
+        srcFile.move(destFile);
+        return destFile.uri;
     };
 
     const handleStop = async () => {
@@ -145,6 +150,21 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                         ]
                     );
 
+                    // Accumulate hours to aircraft and motors (minutes)
+                    try {
+                        const ac: any = await db.getFirstAsync('SELECT * FROM aircraft LIMIT 1');
+                        if (ac) {
+                            const minutes = Math.floor(duration / 60);
+                            const total = (ac.total_hours || 0) + minutes;
+                            const motors = JSON.parse(ac.motors || '[]');
+                            const updatedMotors = motors.map((m: any) => ({ ...m, hours: (m.hours || 0) + minutes }));
+                            await db.runAsync(
+                                `UPDATE aircraft SET total_hours = ?, motors = ? WHERE id = ?`,
+                                [total, JSON.stringify(updatedMotors), ac.id]
+                            );
+                        }
+                    } catch {}
+
                     navigation.navigate('PostFlightForm', { flightId, duration });
                 }
             }
@@ -152,37 +172,21 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
     };
 
     const handleAbort = () => {
-        Alert.alert('Abort Flight', 'Are you sure you want to abort?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Abort',
-                style: 'destructive',
-                onPress: async () => {
-                    setStatus('Abortado');
-                    // Minimal: generate abort PDF and store
-                    try {
-                        const pdfPath = await generateAbortPDF();
-                        await db.runAsync(
-                            `UPDATE flights SET status = ?, pdf_path = ? WHERE id = ?`,
-                            ['Abortado', pdfPath, flightId]
-                        );
-                    } catch {}
-                    navigation.navigate('Checklist', { type, stage: 'PostFlight', flightId });
-                }
-            }
-        ]);
+        setAbortVisible(true);
     };
 
     const handleReleasePayload = async () => {
         const time = new Date().toISOString();
         setPayloadReleased(true);
         setPayloadReleaseTime(time);
+        const relElapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : null;
+        setPayloadReleaseElapsed(relElapsed);
 
         // Update DB
         await db.runAsync(
             `UPDATE flights SET carga = ? WHERE id = ?`,
             [
-                JSON.stringify({ hasPayload, weight: payloadWeight, released: true, releaseTime: time }),
+                JSON.stringify({ hasPayload, weight: payloadWeight, released: true, releaseTime: time, releaseElapsedSeconds: relElapsed }),
                 flightId
             ]
         );
@@ -263,7 +267,7 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                             <View style={styles.phasesContainer}>
                                 <Text style={styles.sectionTitle}>Flight Phases</Text>
                                 <View style={styles.phaseGrid}>
-                                    {['Ascenso', 'Descenso', 'Desplazamiento', 'Ascenso+Desp', 'Descenso+Desp', 'Hover'].map((p) => (
+                                    {['Ascenso', 'Descenso', 'Desplazamiento', 'AscensoConDesplazamiento', 'DescensoConDesplazamiento', 'Hover'].map((p) => (
                                         <Button
                                             key={p}
                                             title={p}
@@ -286,6 +290,55 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                     onPress={handleAbort}
                     style={styles.abortButton}
                 />
+
+                <Modal visible={abortVisible} transparent animationType="fade">
+                    <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.4)', justifyContent:'center', padding:16 }}>
+                        <View style={{ backgroundColor:'white', borderRadius:12, padding:16 }}>
+                            <Text style={{ ...(typography.h3 as TextStyle), marginBottom: spacing.s }}>Abort Flight</Text>
+                            <Input
+                                label="Reason (optional)"
+                                value={abortReason}
+                                onChangeText={setAbortReason}
+                                multiline
+                                numberOfLines={3}
+                                style={{ height:80 }}
+                            />
+                            <View style={{ flexDirection:'row', marginTop: spacing.m }}>
+                                <Button title="Cancel" variant="outline" onPress={() => setAbortVisible(false)} style={{ flex:1, marginRight:8 }} />
+                                <Button
+                                    title="Confirm Abort"
+                                    onPress={async () => {
+                                        setAbortVisible(false);
+                                        setStatus('Abortado');
+                                        try {
+                                            const date = new Date().toLocaleString();
+                                            const html = `
+                                                <html><body>
+                                                  <h1>DRAGOM FLIGHT MANAGER - REPORTE DE VUELO</h1>
+                                                  <h2>ESTADO DEL VUELO: ABORTADO${abortReason ? ' - ' + abortReason : ''}</h2>
+                                                  <p>Fecha: ${date}</p>
+                                                </body></html>`;
+                                            const { uri } = await Print.printToFileAsync({ html });
+                                            const dirObj = new FileSystem.Directory(FileSystem.Paths.document, 'DFM', 'Bitacora', type);
+                                            try { dirObj.create({ intermediates: true, idempotent: true }); } catch {}
+                                            const fileName = `Flight_${flightId}_ABORTADO.pdf`;
+                                            const destFile = new FileSystem.File(dirObj, fileName);
+                                            const srcFile = new FileSystem.File(uri);
+                                            srcFile.move(destFile);
+                                            const newPath = destFile.uri;
+                                            await db.runAsync(
+                                                `UPDATE flights SET status = ?, pdf_path = ? WHERE id = ?`,
+                                                ['Abortado', newPath, flightId]
+                                            );
+                                        } catch {}
+                                        navigation.navigate('Checklist', { type, stage: 'PostFlight', flightId });
+                                    }}
+                                    style={{ flex:1, marginLeft:8 }}
+                                />
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
             </ScrollView>
         </ScreenLayout>
     );
@@ -300,16 +353,16 @@ const styles = StyleSheet.create({
         marginVertical: spacing.xl,
     },
     timerLabel: {
-        ...typography.caption,
+        ...(typography.caption as TextStyle),
         marginBottom: spacing.xs,
     },
     timerValue: {
-        ...typography.h1,
+        ...(typography.h1 as TextStyle),
         fontSize: 48,
         fontVariant: ['tabular-nums'],
     },
     statusText: {
-        ...typography.body,
+        ...(typography.body as TextStyle),
         color: colors.primary,
         marginTop: spacing.s,
     },
@@ -334,7 +387,7 @@ const styles = StyleSheet.create({
         marginBottom: spacing.l,
     },
     sectionTitle: {
-        ...typography.h3,
+        ...(typography.h3 as TextStyle),
         marginBottom: spacing.m,
     },
     phaseGrid: {

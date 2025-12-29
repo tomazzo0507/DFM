@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, Modal, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, Modal, StyleSheet, Alert, TouchableOpacity, TextStyle } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -166,7 +166,8 @@ const styles = StyleSheet.create({
         marginBottom: spacing.m,
     },
     title: {
-        ...typography.h2,
+		...(typography.h2 as TextStyle),
+		fontWeight: '600' as TextStyle['fontWeight'],
     },
     card: {
         backgroundColor: colors.surfaceHighlight,
@@ -175,8 +176,8 @@ const styles = StyleSheet.create({
         marginBottom: spacing.s,
     },
     pilotName: {
-        ...typography.body,
-        fontWeight: '600',
+		...(typography.body as TextStyle),
+		fontWeight: '600' as TextStyle['fontWeight'],
     },
     pilotInfo: {
         ...typography.caption,
@@ -206,7 +207,8 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     modalTitle: {
-        ...typography.h3,
+		...(typography.h3 as TextStyle),
+		fontWeight: '600' as TextStyle['fontWeight'],
         marginBottom: spacing.m,
         textAlign: 'center',
     },

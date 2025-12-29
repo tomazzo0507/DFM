@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert, TextStyle } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Sharing from 'expo-sharing';
 import { ScreenLayout } from '../../components/ScreenLayout';
@@ -68,7 +68,8 @@ export const LogbookScreen = () => {
 
 const styles = StyleSheet.create({
     title: {
-        ...typography.h2,
+		...(typography.h2 as TextStyle),
+		fontWeight: '600' as TextStyle['fontWeight'],
         marginBottom: spacing.m,
     },
     list: {
@@ -89,8 +90,8 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     date: {
-        ...typography.body,
-        fontWeight: '600',
+		...(typography.body as TextStyle),
+		fontWeight: '600' as TextStyle['fontWeight'],
     },
     type: {
         ...typography.caption,

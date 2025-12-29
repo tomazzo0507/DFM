@@ -47,10 +47,6 @@ export const OwnerSetupScreen = ({ navigation }: any) => {
     return (
         <ScreenLayout>
             <View style={styles.content}>
-                <Input
-                    label="Owner Name"
-                    onChangeText={(text) => setValue('name', text)} // Simple binding for now
-                />
                 <Controller
                     control={control}
                     name="name"

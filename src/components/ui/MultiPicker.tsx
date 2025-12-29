@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, FlatList, StyleSheet, TextStyle } from 'react-native';
 import { colors, spacing, typography } from '../../theme';
 import { Button } from './Button';
 import { CheckSquare, Square } from 'lucide-react-native';
@@ -45,7 +45,7 @@ export const MultiPicker = ({ label, items, values = [], onValuesChange, placeho
             <Modal visible={modalVisible} animationType="slide" transparent>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <p style={styles.modalTitle}> Select {label}</p>
+						<Text style={styles.modalTitle}> Select {label}</Text>
                         <FlatList
                             data={items}
                             keyExtractor={(item) => String(item.value)}
@@ -98,8 +98,8 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         maxHeight: '80%',
     },
-    modalTitle: { ...typography.h3, marginBottom: spacing.m, textAlign: 'center' },
+    modalTitle: { ...(typography.h3 as TextStyle), marginBottom: spacing.m, textAlign: 'center' },
     item: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.m, borderBottomWidth: 1, borderBottomColor: colors.surfaceHighlight },
-    itemText: { ...typography.body, marginLeft: spacing.s },
-    selectedItemText: { color: colors.primary, fontWeight: '600' },
+    itemText: { ...(typography.body as TextStyle), marginLeft: spacing.s },
+    selectedItemText: { color: colors.primary, fontWeight: '600' as TextStyle['fontWeight'] },
 });

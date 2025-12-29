@@ -20,6 +20,8 @@ export interface Aircraft {
     id: number;
     name: string;
     code: string;
+    partNum?: string;
+    serialNum?: string;
     motors: Motor[];
     batteriesMain: Battery[];
     batteriesSpare: Battery[];
