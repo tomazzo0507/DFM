@@ -152,12 +152,23 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
 
                     // Accumulate hours to aircraft and motors (minutes)
                     try {
+                        const parseHHMMToMinutes = (value: any): number => {
+                            if (typeof value === 'number' && !Number.isNaN(value)) return value;
+                            if (typeof value === 'string') {
+                                const m = value.match(/^(\d+):(\d{2})$/);
+                                if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+                            }
+                            return 0;
+                        };
                         const ac: any = await db.getFirstAsync('SELECT * FROM aircraft LIMIT 1');
                         if (ac) {
                             const minutes = Math.floor(duration / 60);
                             const total = (ac.total_hours || 0) + minutes;
                             const motors = JSON.parse(ac.motors || '[]');
-                            const updatedMotors = motors.map((m: any) => ({ ...m, hours: (m.hours || 0) + minutes }));
+                            const updatedMotors = motors.map((m: any) => ({
+                                ...m,
+                                hours: parseHHMMToMinutes(m.hours) + minutes,
+                            }));
                             await db.runAsync(
                                 `UPDATE aircraft SET total_hours = ?, motors = ? WHERE id = ?`,
                                 [total, JSON.stringify(updatedMotors), ac.id]
@@ -216,7 +227,7 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
         <ScreenLayout>
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.timerContainer}>
-                    <Text style={styles.timerLabel}>Flight Duration</Text>
+                    <Text style={styles.timerLabel}>Duración del vuelo</Text>
                     <Text style={styles.timerValue}>{formatTime(elapsed)}</Text>
                     <Text style={styles.statusText}>{status}</Text>
                 </View>
@@ -225,13 +236,13 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                     <View style={styles.setupContainer}>
                         <View style={styles.row}>
                             <Button
-                                title="With Payload"
+                                title="Con carga"
                                 variant={hasPayload ? 'primary' : 'outline'}
                                 onPress={() => setHasPayload(true)}
                                 style={{ flex: 1, marginRight: 8 }}
                             />
                             <Button
-                                title="No Payload"
+                                title="Sin carga"
                                 variant={!hasPayload ? 'primary' : 'outline'}
                                 onPress={() => setHasPayload(false)}
                                 style={{ flex: 1, marginLeft: 8 }}
@@ -240,14 +251,14 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
 
                         {hasPayload && (
                             <Input
-                                label="Payload Weight (kg)"
+                                label="Peso de carga (kg)"
                                 value={payloadWeight}
                                 onChangeText={setPayloadWeight}
                                 keyboardType="numeric"
                             />
                         )}
 
-                        <Button title="START FLIGHT" onPress={handleStart} style={styles.startButton} />
+                        <Button title="INICIAR VUELO" onPress={handleStart} style={styles.startButton} />
                     </View>
                 )}
 
@@ -255,7 +266,7 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                     <View style={styles.controlsContainer}>
                         {hasPayload && (
                             <Button
-                                title={payloadReleased ? "Payload Released" : "Release Payload"}
+                                title={payloadReleased ? "Carga liberada" : "Liberar carga"}
                                 onPress={handleReleasePayload}
                                 disabled={payloadReleased}
                                 variant="secondary"
@@ -265,9 +276,9 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
 
                         {type === 'Ensayo' && (
                             <View style={styles.phasesContainer}>
-                                <Text style={styles.sectionTitle}>Flight Phases</Text>
+                                <Text style={styles.sectionTitle}>Fases de vuelo</Text>
                                 <View style={styles.phaseGrid}>
-                                    {['Ascenso', 'Descenso', 'Desplazamiento', 'AscensoConDesplazamiento', 'DescensoConDesplazamiento', 'Hover'].map((p) => (
+                                    {['Ascenso', 'Descenso', 'Desplazamiento', 'Ascenso con desplazamiento', 'Descenso con desplazamiento', 'Estacionario'].map((p) => (
                                         <Button
                                             key={p}
                                             title={p}
@@ -280,12 +291,12 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                             </View>
                         )}
 
-                        <Button title="FINISH FLIGHT" onPress={handleStop} style={styles.stopButton} />
+                        <Button title="FINALIZAR VUELO" onPress={handleStop} style={styles.stopButton} />
                     </View>
                 )}
 
                 <Button
-                    title="Abort Flight"
+                    title="Abortar vuelo"
                     variant="outline"
                     onPress={handleAbort}
                     style={styles.abortButton}
@@ -294,9 +305,9 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                 <Modal visible={abortVisible} transparent animationType="fade">
                     <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.4)', justifyContent:'center', padding:16 }}>
                         <View style={{ backgroundColor:'white', borderRadius:12, padding:16 }}>
-                            <Text style={{ ...(typography.h3 as TextStyle), marginBottom: spacing.s }}>Abort Flight</Text>
+                            <Text style={{ ...(typography.h3 as TextStyle), marginBottom: spacing.s }}>Abortar vuelo</Text>
                             <Input
-                                label="Reason (optional)"
+                                label="Motivo (opcional)"
                                 value={abortReason}
                                 onChangeText={setAbortReason}
                                 multiline
@@ -304,9 +315,9 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                                 style={{ height:80 }}
                             />
                             <View style={{ flexDirection:'row', marginTop: spacing.m }}>
-                                <Button title="Cancel" variant="outline" onPress={() => setAbortVisible(false)} style={{ flex:1, marginRight:8 }} />
+                                <Button title="Cancelar" variant="outline" onPress={() => setAbortVisible(false)} style={{ flex:1, marginRight:8 }} />
                                 <Button
-                                    title="Confirm Abort"
+                                    title="Confirmar"
                                     onPress={async () => {
                                         setAbortVisible(false);
                                         setStatus('Abortado');
@@ -375,7 +386,7 @@ const styles = StyleSheet.create({
     },
     startButton: {
         marginTop: spacing.l,
-        backgroundColor: colors.success,
+        backgroundColor: colors.primary,
     },
     controlsContainer: {
         marginTop: spacing.m,
@@ -400,10 +411,10 @@ const styles = StyleSheet.create({
     },
     stopButton: {
         marginTop: spacing.l,
-        backgroundColor: colors.error,
+        backgroundColor: colors.secondary,
     },
     abortButton: {
         marginTop: spacing.xl,
-        borderColor: colors.error,
+        borderColor: colors.secondary,
     },
 });

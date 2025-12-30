@@ -1,16 +1,17 @@
 export const colors = {
-    background: '#0f172a', // Slate 900
-    surface: '#1e293b',    // Slate 800
-    surfaceHighlight: '#334155', // Slate 700
-    primary: '#38bdf8',    // Sky 400
-    secondary: '#818cf8',  // Indigo 400
-    accent: '#f472b6',     // Pink 400
-    success: '#4ade80',    // Green 400
-    warning: '#fbbf24',    // Amber 400
-    error: '#f87171',      // Red 400
-    text: '#f8fafc',       // Slate 50
-    textSecondary: '#94a3b8', // Slate 400
-    border: '#334155',     // Slate 700
+    background: '#FFFFFF',
+    surface: '#F7FAFC',
+    surfaceHighlight: '#EDF2F7',
+    primary: '#1D4ED8',       // Azul principal
+    secondary: '#2563EB',     // Azul de realce
+    accent: '#0EA5E9',        // Azul claro para énfasis
+    // success/warning/error retirados del uso visual; mantener referencias neutras/azules
+    success: '#2563EB',       // usar azul en lugar de verde
+    warning: '#1F2937',       // gris oscuro para avisos sobrios
+    error: '#1F2937',         // gris oscuro para errores (sin rojo)
+    text: '#0B0F14',          // casi negro
+    textSecondary: '#4B5563', // gris
+    border: '#E5E7EB',        // gris claro
 };
 
 export const spacing = {
@@ -28,7 +29,7 @@ export const typography = {
     h3: { fontSize: 20, fontWeight: '600', color: colors.text },
     body: { fontSize: 16, color: colors.text },
     caption: { fontSize: 14, color: colors.textSecondary },
-    button: { fontSize: 16, fontWeight: '600', color: colors.background },
+    button: { fontSize: 16, fontWeight: '600', color: colors.surface },
 };
 
 export const theme = {

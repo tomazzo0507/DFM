@@ -11,25 +11,25 @@ import { db } from '../../db';
 
 // Schema
 const motorSchema = z.object({
-    code: z.string().min(1, 'Required'),
-    hours: z.string().regex(/^\d+:\d{2}$/, 'Format HH:MM').or(z.literal('00:00')),
+    code: z.string().min(1, 'Requerido'),
+    hours: z.string().regex(/^\d+:\d{2}$/, 'Formato HH:MM').or(z.literal('00:00')),
 });
 
 const batterySchema = z.object({
-    code: z.string().min(1, 'Required'),
+    code: z.string().min(1, 'Requerido'),
     cycles: z.string().transform((val) => parseInt(val, 10) || 0),
 });
 
 const cameraSchema = z.object({
-    code: z.string().min(1, 'Required'),
+    code: z.string().min(1, 'Requerido'),
     description: z.string().optional(),
 });
 
 const aircraftSchema = z.object({
-    name: z.string().trim().min(1, 'Required'),
-    code: z.string().trim().min(1, 'Required'),
-    partNum: z.string().trim().min(1, 'Required'),
-    serialNum: z.string().trim().min(1, 'Required'),
+    name: z.string().trim().min(1, 'Requerido'),
+    code: z.string().trim().min(1, 'Requerido'),
+    partNum: z.string().trim().min(1, 'Requerido'),
+    serialNum: z.string().trim().min(1, 'Requerido'),
     numMotors: z.string().transform((val) => parseInt(val, 10) || 0),
     motors: z.array(motorSchema),
     batteriesMain: z.array(batterySchema),
@@ -41,6 +41,12 @@ type AircraftFormData = z.infer<typeof aircraftSchema>;
 
 export const AircraftSetupScreen = ({ navigation }: any) => {
     const [step, setStep] = useState(1);
+
+    const parseHHMMToMinutes = (value: string) => {
+        const m = value?.match?.(/^(\d+):(\d{2})$/);
+        if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+        return 0;
+    };
 
     const { control, handleSubmit, watch, setValue, getValues } = useForm<AircraftFormData>({
         resolver: zodResolver(aircraftSchema) as any,
@@ -100,6 +106,10 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
 
     const onSubmit = async (data: AircraftFormData) => {
         try {
+            const motorsToSave = (data.motors || []).map(m => ({
+                ...m,
+                hours: parseHHMMToMinutes(m.hours),
+            }));
             const existing: any = await db.getFirstAsync('SELECT id FROM aircraft LIMIT 1');
             if (existing?.id) {
                 await db.runAsync(
@@ -109,7 +119,7 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
                         data.code,
                         data.partNum,
                         data.serialNum,
-                        JSON.stringify(data.motors),
+                        JSON.stringify(motorsToSave),
                         JSON.stringify(data.batteriesMain),
                         JSON.stringify(data.batteriesSpare),
                         JSON.stringify(data.cameras),
@@ -124,7 +134,7 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
                         data.code,
                         data.partNum,
                         data.serialNum,
-                        JSON.stringify(data.motors),
+                        JSON.stringify(motorsToSave),
                         JSON.stringify(data.batteriesMain),
                         JSON.stringify(data.batteriesSpare),
                         JSON.stringify(data.cameras),
@@ -145,8 +155,8 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
 
     return (
         <ScreenLayout>
-            <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-                <Text style={styles.title}>Aircraft Setup - Step {step}/3</Text>
+            <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: spacing.m }}>
+                <Text style={styles.title}>Configuración de aeronave - Paso {step}/3</Text>
 
                 {step === 1 && (
                     <View>
@@ -154,28 +164,28 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
                             control={control}
                             name="name"
                             render={({ field: { onChange, value }, fieldState: { error } }) => (
-                                <Input label="Aircraft Name" value={value} onChangeText={onChange} error={error?.message} />
+                                <Input label="Nombre de la aeronave" value={value} onChangeText={onChange} error={error?.message} />
                             )}
                         />
                         <Controller
                             control={control}
                             name="code"
                             render={({ field: { onChange, value }, fieldState: { error } }) => (
-                                <Input label="Registration Code" value={value} onChangeText={onChange} error={error?.message} />
+                                <Input label="Código de registro" value={value} onChangeText={onChange} error={error?.message} />
                             )}
                         />
                         <Controller
                             control={control}
                             name="partNum"
                             render={({ field: { onChange, value }, fieldState: { error } }) => (
-                                <Input label="Part Number (P/N)" value={value} onChangeText={onChange} error={error?.message} />
+                                <Input label="Número de parte (P/N)" value={value} onChangeText={onChange} error={error?.message} />
                             )}
                         />
                         <Controller
                             control={control}
                             name="serialNum"
                             render={({ field: { onChange, value }, fieldState: { error } }) => (
-                                <Input label="Serial Number (S/N)" value={value} onChangeText={onChange} error={error?.message} />
+                                <Input label="Número de serie (S/N)" value={value} onChangeText={onChange} error={error?.message} />
                             )}
                         />
                         <Controller
@@ -183,7 +193,7 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
                             name="numMotors"
                             render={({ field: { onChange, value }, fieldState: { error } }) => (
                                 <Input
-                                    label="Number of Motors"
+                                    label="Número de motores"
                                     value={value?.toString()}
                                     onChangeText={onChange}
                                     keyboardType="numeric"
@@ -192,7 +202,7 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
                             )}
                         />
 
-                        <Text style={styles.sectionTitle}>Motors</Text>
+                        <Text style={styles.sectionTitle}>Motores</Text>
                         {motorFields.map((field, index) => (
                             <View key={field.id} style={styles.card}>
                                 <Text style={styles.cardTitle}>Motor {index + 1}</Text>
@@ -200,92 +210,92 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
                                     control={control}
                                     name={`motors.${index}.code`}
                                     render={({ field: { onChange, value } }) => (
-                                        <Input label="Motor Code" value={value} onChangeText={onChange} />
+                                        <Input label="Código de motor" value={value} onChangeText={onChange} />
                                     )}
                                 />
                                 <Controller
                                     control={control}
                                     name={`motors.${index}.hours`}
                                     render={({ field: { onChange, value } }) => (
-                                        <Input label="Initial Hours (HH:MM)" value={value} onChangeText={onChange} placeholder="00:00" />
+                                        <Input label="Horas iniciales (HH:MM)" value={value} onChangeText={onChange} placeholder="00:00" />
                                     )}
                                 />
                             </View>
                         ))}
-                        <Button title="Next: Batteries" onPress={nextStep} style={{ marginTop: 20 }} />
+                        <Button title="Siguiente: Baterías" onPress={nextStep} style={{ marginTop: 20 }} />
                     </View>
                 )}
 
                 {step === 2 && (
                     <View>
-                        <Text style={styles.sectionTitle}>Main Batteries</Text>
+                        <Text style={styles.sectionTitle}>Baterías principales</Text>
                         {batMainFields.map((field, index) => (
                             <View key={field.id} style={styles.card}>
                                 <Input
-                                    label="Battery Code"
+                                    label="Código de batería"
                                     // @ts-ignore
                                     onChangeText={(text) => setValue(`batteriesMain.${index}.code`, text)}
                                 />
                                 <Input
-                                    label="Cycles"
+                                    label="Ciclos"
                                     keyboardType="numeric"
                                     // @ts-ignore
                                     onChangeText={(text) => setValue(`batteriesMain.${index}.cycles`, text)}
                                 />
-                                <Button title="Remove" variant="outline" onPress={() => removeBatMain(index)} style={{ marginTop: 8 }} />
+                                <Button title="Eliminar" variant="outline" onPress={() => removeBatMain(index)} style={{ marginTop: 8 }} />
                             </View>
                         ))}
-                        <Button title="Add Main Battery" variant="secondary" onPress={() => appendBatMain({ code: '', cycles: 0 })} />
+                        <Button title="Agregar batería principal" variant="secondary" onPress={() => appendBatMain({ code: '', cycles: 0 })} />
 
-                        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Spare Batteries</Text>
+                        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Baterías de repuesto</Text>
                         {batSpareFields.map((field, index) => (
                             <View key={field.id} style={styles.card}>
                                 <Input
-                                    label="Battery Code"
+                                    label="Código de batería"
                                     // @ts-ignore
                                     onChangeText={(text) => setValue(`batteriesSpare.${index}.code`, text)}
                                 />
                                 <Input
-                                    label="Cycles"
+                                    label="Ciclos"
                                     keyboardType="numeric"
                                     // @ts-ignore
                                     onChangeText={(text) => setValue(`batteriesSpare.${index}.cycles`, text)}
                                 />
-                                <Button title="Remove" variant="outline" onPress={() => removeBatSpare(index)} style={{ marginTop: 8 }} />
+                                <Button title="Eliminar" variant="outline" onPress={() => removeBatSpare(index)} style={{ marginTop: 8 }} />
                             </View>
                         ))}
-                        <Button title="Add Spare Battery" variant="secondary" onPress={() => appendBatSpare({ code: '', cycles: 0 })} />
+                        <Button title="Agregar batería de repuesto" variant="secondary" onPress={() => appendBatSpare({ code: '', cycles: 0 })} />
 
                         <View style={styles.row}>
-                            <Button title="Back" variant="outline" onPress={prevStep} style={{ flex: 1, marginRight: 8 }} />
-                            <Button title="Next: Cameras" onPress={nextStep} style={{ flex: 1, marginLeft: 8 }} />
+                            <Button title="Atrás" variant="outline" onPress={prevStep} style={{ flex: 1, marginRight: 8 }} />
+                            <Button title="Siguiente: Cámaras" onPress={nextStep} style={{ flex: 1, marginLeft: 8 }} />
                         </View>
                     </View>
                 )}
 
                 {step === 3 && (
                     <View>
-                        <Text style={styles.sectionTitle}>Cameras</Text>
+                        <Text style={styles.sectionTitle}>Cámaras</Text>
                         {cameraFields.map((field, index) => (
                             <View key={field.id} style={styles.card}>
                                 <Input
-                                    label="Camera Code"
+                                    label="Código de cámara"
                                     // @ts-ignore
                                     onChangeText={(text) => setValue(`cameras.${index}.code`, text)}
                                 />
                                 <Input
-                                    label="Description"
+                                    label="Descripción"
                                     // @ts-ignore
                                     onChangeText={(text) => setValue(`cameras.${index}.description`, text)}
                                 />
-                                <Button title="Remove" variant="outline" onPress={() => removeCamera(index)} style={{ marginTop: 8 }} />
+                                <Button title="Eliminar" variant="outline" onPress={() => removeCamera(index)} style={{ marginTop: 8 }} />
                             </View>
                         ))}
-                        <Button title="Add Camera" variant="secondary" onPress={() => appendCamera({ code: '', description: '' })} />
+                        <Button title="Agregar cámara" variant="secondary" onPress={() => appendCamera({ code: '', description: '' })} />
 
                         <View style={styles.row}>
-                            <Button title="Back" variant="outline" onPress={prevStep} style={{ flex: 1, marginRight: 8 }} />
-                            <Button title="Finish Setup" onPress={handleSubmit(onSubmit as any)} style={{ flex: 1, marginLeft: 8 }} />
+                            <Button title="Atrás" variant="outline" onPress={prevStep} style={{ flex: 1, marginRight: 8 }} />
+                            <Button title="Finalizar configuración" onPress={handleSubmit(onSubmit as any)} style={{ flex: 1, marginLeft: 8 }} />
                         </View>
                     </View>
                 )}

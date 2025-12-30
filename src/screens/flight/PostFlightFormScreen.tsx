@@ -51,14 +51,13 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
 
     const roles: Array<{ key: string; label: string; required: boolean }> = useMemo(() => {
         const base: Array<{ key: string; label: string; required: boolean }> = [
-            { key: 'Internal Pilot', label: 'Internal Pilot', required: true },
-            { key: 'External Pilot', label: 'External Pilot', required: true },
+            { key: 'Piloto', label: 'Piloto', required: true },
         ];
         if (crew?.missionLeader) {
-            base.push({ key: 'Mission Leader', label: 'Mission Leader', required: true });
+            base.push({ key: 'Líder de Misión', label: 'Líder de Misión', required: false });
         }
         if (crew?.flightEngineer) {
-            base.push({ key: 'Flight Engineer', label: 'Flight Engineer', required: true });
+            base.push({ key: 'Ingeniero de Vuelo', label: 'Ingeniero de Vuelo', required: false });
         }
         return base;
     }, [crew]);
@@ -89,14 +88,14 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
             : null;
 
         const crew = flightRow.crew ? JSON.parse(flightRow.crew) : {};
-        const equipment = flightRow.equipment ? JSON.parse(flightRow.equipment) : { batteries: [], camera: undefined };
+        const equipment = flightRow.equipment ? JSON.parse(flightRow.equipment) : { batteries: '', cameras: [] };
         const prev = flightRow.prevuelo ? JSON.parse(flightRow.prevuelo) : {};
         const carga = flightRow.carga ? JSON.parse(flightRow.carga) : {};
         const fases = flightRow.fases ? JSON.parse(flightRow.fases) : [];
         const type = flightRow.type;
 
         // Pilot names
-        const pilotIds: number[] = [crew.pilotInternal, crew.pilotExternal, crew.missionLeader, crew.flightEngineer].filter(Boolean);
+        const pilotIds: number[] = [crew.pilot].filter(Boolean);
         const idToName = new Map<number, string>();
         for (const pid of pilotIds) {
             const row: any = await database.getFirstAsync('SELECT name FROM pilots WHERE id = ?', [pid]);
@@ -126,9 +125,14 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
         const durSec = flightRow.duration || 0;
         const durMin = Math.floor(durSec / 60);
 
-        // Batteries (first two selected) map to codes/cycles (selection by code)
+        // Batteries (first two) — now free text: attempt to parse as codes, else empty
         const allBats = [...(aircraft?.batteriesMain || []), ...(aircraft?.batteriesSpare || [])];
-        const usedBats = (equipment.batteries || []).slice(0, 2).map((code: string) => allBats.find(b => b.code === code));
+        const batteryCodes: string[] = Array.isArray(equipment.batteries)
+          ? equipment.batteries
+          : (typeof equipment.batteries === 'string'
+              ? equipment.batteries.split(/[,;]+|\s{2,}/).map((s: string) => s.trim()).filter(Boolean)
+              : []);
+        const usedBats = batteryCodes.slice(0, 2).map((code: string) => allBats.find(b => b.code === code));
         const b1 = usedBats[0];
         const b2 = usedBats[1];
 
@@ -194,12 +198,11 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
 
     <tr><td colspan="3" class="gray">TRIPULACIÓN</td></tr>
     <tr>
-      <td><strong>Piloto Interno</strong> <span id="pv_piloto_interno">${idToName.get(crew.pilotInternal) || ''}</span></td>
-      <td><strong>Piloto Externo</strong> <span id="pv_piloto_externo">${idToName.get(crew.pilotExternal) || ''}</span></td>
-      <td><strong>Líder de Misión</strong> <span id="pv_lider_mision">${crew.missionLeader ? (idToName.get(crew.missionLeader) || '') : ''}</span></td>
+      <td><strong>Piloto</strong> <span id="pv_piloto">${idToName.get(crew.pilot) || ''}</span></td>
+      <td><strong>Líder de Misión</strong> <span id="pv_lider_mision">${crew.missionLeader || ''}</span></td>
     </tr>
     <tr>
-      <td><strong>Ing. de Vuelo</strong> <span id="pv_ing_vuelo">${crew.flightEngineer ? (idToName.get(crew.flightEngineer) || '') : ''}</span></td>
+      <td><strong>Ing. de Vuelo</strong> <span id="pv_ing_vuelo">${crew.flightEngineer || ''}</span></td>
       <td></td><td></td>
     </tr>
 
@@ -298,22 +301,22 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
     <tr class="row-compact"><td colspan="3" class="no-padding">
       <table class="signatures-simple">
         <tr>
-          <td class="firmas" id="firma_piloto_interno">${signatures['Internal Pilot'] ? `<img src="${signatures['Internal Pilot']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
-          <td class="firmas" id="firma_piloto_externo">${signatures['External Pilot'] ? `<img src="${signatures['External Pilot']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
-          <td class="firmas" id="firma_lider">${crew.missionLeader && signatures['Mission Leader'] ? `<img src="${signatures['Mission Leader']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
-          <td class="firmas" id="firma_ing_vuelo">${crew.flightEngineer && signatures['Flight Engineer'] ? `<img src="${signatures['Flight Engineer']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
+          <td class="firmas" id="firma_piloto">${signatures['Piloto'] ? `<img src="${signatures['Piloto']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
+          <td class="firmas" id="firma_lider">${crew.missionLeader && signatures['Líder de Misión'] ? `<img src="${signatures['Líder de Misión']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
+          <td class="firmas" id="firma_ing_vuelo">${crew.flightEngineer && signatures['Ingeniero de Vuelo'] ? `<img src="${signatures['Ingeniero de Vuelo']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
+          <td class="firmas"></td>
         </tr>
         <tr>
-          <td><strong>Nombre:</strong> <span id="nombre_piloto_interno">${idToName.get(crew.pilotInternal) || ''}</span></td>
-          <td><strong>Nombre:</strong> <span id="nombre_piloto_externo">${idToName.get(crew.pilotExternal) || ''}</span></td>
-          <td><strong>Nombre:</strong> <span id="nombre_lider">${crew.missionLeader ? (idToName.get(crew.missionLeader) || '') : ''}</span></td>
-          <td><strong>Nombre:</strong> <span id="nombre_ing_vuelo">${crew.flightEngineer ? (idToName.get(crew.flightEngineer) || '') : ''}</span></td>
+          <td><strong>Nombre:</strong> <span id="nombre_piloto">${idToName.get(crew.pilot) || ''}</span></td>
+          <td><strong>Nombre:</strong> <span id="nombre_lider">${crew.missionLeader || ''}</span></td>
+          <td><strong>Nombre:</strong> <span id="nombre_ing_vuelo">${crew.flightEngineer || ''}</span></td>
+          <td></td>
         </tr>
         <tr>
-          <td><strong>Piloto Interno</strong></td>
-          <td><strong>Piloto Externo</strong></td>
+          <td><strong>Piloto</strong></td>
           <td><strong>Líder de Misión</strong></td>
           <td><strong>Ing. de Vuelo</strong></td>
+          <td></td>
         </tr>
       </table>
     </td></tr>
@@ -369,35 +372,35 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
     return (
         <ScreenLayout>
             <ScrollView contentContainerStyle={styles.content}>
-                <Text style={styles.title}>Post-Flight Report</Text>
+                <Text style={styles.title}>Reporte postvuelo</Text>
 
                 <View style={styles.infoCard}>
-                    <Text style={styles.infoText}>Duration: {Math.floor(duration / 60)}m {duration % 60}s</Text>
+                    <Text style={styles.infoText}>Duración: {Math.floor(duration / 60)}m {duration % 60}s</Text>
                 </View>
 
                 <Controller
                     control={control}
                     name="status"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Post-Flight Status" value={value} onChangeText={onChange} error={error?.message} multiline numberOfLines={3} style={{ height: 80 }} />
+                        <Input label="Estado postvuelo" value={value} onChangeText={onChange} error={error?.message} multiline numberOfLines={3} style={{ height: 80 }} />
                     )}
                 />
                 <Controller
                     control={control}
                     name="notes"
                     render={({ field: { onChange, value } }) => (
-                        <Input label="Notes" value={value} onChangeText={onChange} multiline numberOfLines={3} style={{ height: 80 }} />
+                        <Input label="Notas" value={value} onChangeText={onChange} multiline numberOfLines={3} style={{ height: 80 }} />
                     )}
                 />
                 <Controller
                     control={control}
                     name="pdfName"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Report Name (PDF)" value={value} onChangeText={onChange} error={error?.message} />
+                        <Input label="Nombre del reporte (PDF)" value={value} onChangeText={onChange} error={error?.message} />
                     )}
                 />
 
-                <Text style={styles.sectionTitle}>Signatures</Text>
+                <Text style={styles.sectionTitle}>Firmas</Text>
                 {roles.map(({ key, label, required }) => (
                     <View key={key} style={styles.signatureRow}>
                         <Text style={styles.roleText}>
@@ -408,12 +411,12 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
                                 <Image source={{ uri: signatures[key] }} style={styles.signatureImage} />
                             </TouchableOpacity>
                         ) : (
-                            <Button title="Sign" variant="outline" onPress={() => handleSign(key)} style={{ width: 100 }} />
+                            <Button title="Firmar" variant="outline" onPress={() => handleSign(key)} style={{ width: 100 }} />
                         )}
                     </View>
                 ))}
 
-                <Button title="Save & Generate Report" onPress={handleSubmit(onSubmit)} style={{ marginTop: spacing.xl }} />
+                <Button title="Guardar y generar reporte" onPress={handleSubmit(onSubmit)} style={{ marginTop: spacing.xl }} />
 
                 <SignaturePad
                     visible={!!currentSigner}

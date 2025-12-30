@@ -11,6 +11,15 @@ export const HomeScreen = ({ navigation }: any) => {
     const [aircraft, setAircraft] = useState<Aircraft | null>(null);
     const [activeFlight, setActiveFlight] = useState<Flight | null>(null);
 
+    const parseHHMMToMinutes = (value: any): number => {
+        if (typeof value === 'number' && !Number.isNaN(value)) return value;
+        if (typeof value === 'string') {
+            const m = value.match(/^(\d+):(\d{2})$/);
+            if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+        }
+        return 0;
+    };
+
     const loadData = async () => {
         try {
             // Check for active flight
@@ -65,8 +74,8 @@ export const HomeScreen = ({ navigation }: any) => {
         return (
             <ScreenLayout>
                 <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Loading Aircraft Data...</Text>
-                    <Button title="Go to Setup" onPress={() => navigation.navigate('AircraftSetup')} style={{ marginTop: 20 }} />
+                    <Text style={styles.loadingText}>Cargando datos de la aeronave...</Text>
+                    <Button title="Ir a configuración" onPress={() => navigation.navigate('AircraftSetup')} style={{ marginTop: 20 }} />
                 </View>
             </ScreenLayout>
         );
@@ -78,24 +87,24 @@ export const HomeScreen = ({ navigation }: any) => {
         <ScreenLayout>
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Dashboard</Text>
+                    <Text style={styles.title}>INICIO</Text>
                     <Text style={styles.subtitle}>{aircraft.name} ({aircraft.code})</Text>
                 </View>
 
                 {activeFlight && (
                     <View style={styles.activeFlightCard}>
-                        <Text style={styles.activeFlightTitle}>Flight in Progress!</Text>
+                        <Text style={styles.activeFlightTitle}>¡Vuelo en progreso!</Text>
                         <Button
-                            title="RESUME FLIGHT"
+                            title="REANUDAR VUELO"
                             onPress={() => navigation.navigate('FlightTimer', { flightId: activeFlight.id, type: activeFlight.type })}
-                            style={{ marginTop: 8, backgroundColor: colors.success }}
+                            style={{ marginTop: 8, backgroundColor: colors.primary }}
                         />
                     </View>
                 )}
 
                 {warnings.length > 0 && (
                     <View style={styles.warningCard}>
-                        <Text style={styles.warningTitle}>Maintenance Alerts</Text>
+                        <Text style={styles.warningTitle}>Alertas de mantenimiento</Text>
                         {warnings.map((w, i) => (
                             <Text key={i} style={styles.warningText}>• {w}</Text>
                         ))}
@@ -104,38 +113,47 @@ export const HomeScreen = ({ navigation }: any) => {
 
                 <View style={styles.statsCard}>
                     <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>Total Flight Time</Text>
+                        <Text style={styles.statLabel}>Tiempo total de vuelo</Text>
                         <Text style={styles.statValue}>{formatHours(aircraft.totalHours || 0)}</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>Motors</Text>
+                        <Text style={styles.statLabel}>Motores</Text>
                         <Text style={styles.statValue}>{aircraft.motors.length}</Text>
                     </View>
+					<View style={styles.statDivider} />
+					<View style={styles.statItem}>
+						<Text style={styles.statLabel}>Tiempo por motor</Text>
+						{aircraft.motors.map((m, index) => (
+							<Text key={`${m.code || 'motor'}-${index}`} style={styles.motorValue}>
+								{m.code}: {formatHours(parseHHMMToMinutes((m as any).hours))}
+							</Text>
+						))}
+					</View>
                 </View>
 
-                <Text style={styles.sectionTitle}>Start Flight</Text>
+                <Text style={styles.sectionTitle}>Iniciar vuelo</Text>
                 <View style={styles.row}>
                     <Button
-                        title="Operational Flight"
+                        title="Vuelo operativo"
                         onPress={() => navigation.navigate('Checklist', { type: 'Operativo' })}
                         style={{ flex: 1, marginRight: 8, height: 60 }}
                     />
                     <Button
-                        title="Test Flight"
+                        title="Vuelo de ensayo"
                         variant="secondary"
                         onPress={() => navigation.navigate('Checklist', { type: 'Ensayo' })}
                         style={{ flex: 1, marginLeft: 8, height: 60 }}
                     />
                 </View>
 
-                <Text style={styles.sectionTitle}>Management</Text>
+                <Text style={styles.sectionTitle}>Gestión</Text>
                 <View style={styles.grid}>
                     <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('AircraftSetup')}>
-                        <Text style={styles.gridText}>Edit Aircraft</Text>
+                        <Text style={styles.gridText}>Editar aeronave</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('PilotManagement')}>
-                        <Text style={styles.gridText}>Pilots</Text>
+                        <Text style={styles.gridText}>Pilotos</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('OperationalLogbook')}>
                         <Text style={styles.gridText}>Bitácora Operativa</Text>
@@ -144,7 +162,7 @@ export const HomeScreen = ({ navigation }: any) => {
                         <Text style={styles.gridText}>Bitácora Ensayo</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('FlightBook')}>
-                        <Text style={styles.gridText}>Flight Books</Text>
+                        <Text style={styles.gridText}>Libros de vuelo</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -183,11 +201,11 @@ const styles = StyleSheet.create({
         padding: spacing.m,
         marginBottom: spacing.l,
         borderWidth: 1,
-        borderColor: colors.success,
+        borderColor: colors.primary,
     },
     activeFlightTitle: {
         ...(typography.h3 as TextStyle),
-        color: colors.success,
+        color: colors.primary,
         textAlign: 'center',
         marginBottom: spacing.s,
     },
@@ -197,16 +215,16 @@ const styles = StyleSheet.create({
         padding: spacing.m,
         marginBottom: spacing.l,
         borderWidth: 1,
-        borderColor: colors.error,
+        borderColor: colors.secondary,
     },
     warningTitle: {
         ...(typography.h3 as TextStyle),
-        color: colors.error,
+        color: colors.secondary,
         marginBottom: spacing.s,
     },
     warningText: {
         ...(typography.body as TextStyle),
-        color: colors.error,
+        color: colors.secondary,
         marginBottom: 4,
     },
     statsCard: {
@@ -228,6 +246,10 @@ const styles = StyleSheet.create({
         ...(typography.h2 as TextStyle),
         color: colors.text,
     },
+	motorValue: {
+		...(typography.body as TextStyle),
+		color: colors.text,
+	},
     statDivider: {
         width: 1,
         backgroundColor: colors.border,

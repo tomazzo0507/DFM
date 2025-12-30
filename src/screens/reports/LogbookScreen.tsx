@@ -54,13 +54,13 @@ export const LogbookScreen = () => {
 
     return (
         <ScreenLayout>
-            <Text style={styles.title}>Logbook</Text>
+            <Text style={styles.title}>Bitácora</Text>
             <FlatList
                 data={flights}
                 renderItem={renderItem}
                 keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={styles.list}
-                ListEmptyComponent={<Text style={styles.emptyText}>No flight reports yet.</Text>}
+                ListEmptyComponent={<Text style={styles.emptyText}>Aún no hay reportes de vuelo.</Text>}
             />
         </ScreenLayout>
     );

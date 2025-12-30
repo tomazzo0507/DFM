@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, Modal, StyleSheet, Alert, TouchableOpacity, TextStyle } from 'react-native';
+import { View, Text, FlatList, Modal, StyleSheet, Alert, TouchableOpacity, TextStyle, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -41,8 +41,15 @@ export const PilotManagementScreen = ({ navigation }: any) => {
 
     const loadPilots = async () => {
         try {
-            const result = await db.getAllAsync('SELECT * FROM pilots');
-            setPilots(result as Pilot[]);
+            const rows = await db.getAllAsync('SELECT * FROM pilots');
+            setPilots((rows as any[]).map(r => ({
+                id: r.id,
+                name: r.name,
+                cc: r.cc,
+                licenseNum: r.license_num,
+                licenseType: r.license_type,
+                licenseExpiry: r.license_expiry,
+            })));
         } catch (error) {
             console.error(error);
         }
@@ -71,16 +78,16 @@ export const PilotManagementScreen = ({ navigation }: any) => {
     const renderPilot = ({ item }: { item: Pilot }) => (
         <View style={styles.card}>
             <Text style={styles.pilotName}>{item.name}</Text>
-            <Text style={styles.pilotInfo}>Lic: {item.licenseNum} ({item.licenseType})</Text>
-            <Text style={styles.pilotInfo}>Exp: {new Date(item.licenseExpiry).toLocaleDateString()}</Text>
+            <Text style={styles.pilotInfo}>Lic.: {item.licenseNum} ({item.licenseType})</Text>
+            <Text style={styles.pilotInfo}>Vence: {new Date(item.licenseExpiry).toLocaleDateString()}</Text>
         </View>
     );
 
     return (
         <ScreenLayout>
             <View style={styles.header}>
-                <Text style={styles.title}>Pilots</Text>
-                <Button title="+ New Pilot" onPress={() => setModalVisible(true)} style={{ height: 40 }} />
+                <Text style={styles.title}>Pilotos</Text>
+                <Button title="+ Nuevo piloto" onPress={() => setModalVisible(true)} style={{ height: 40 }} />
             </View>
 
             <FlatList
@@ -88,70 +95,74 @@ export const PilotManagementScreen = ({ navigation }: any) => {
                 renderItem={renderPilot}
                 keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={{ paddingBottom: 80 }}
-                ListEmptyComponent={<Text style={styles.emptyText}>No pilots registered yet.</Text>}
+                ListEmptyComponent={<Text style={styles.emptyText}>Aún no hay pilotos registrados.</Text>}
             />
 
             <Button
-                title="Finish Setup"
+                title="Finalizar configuración"
                 onPress={() => navigation.navigate('Dashboard')}
                 style={styles.finishButton}
             />
 
             <Modal visible={modalVisible} animationType="slide" transparent>
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>New Pilot</Text>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                        <ScrollView contentContainerStyle={{ paddingBottom: spacing.m }}>
+                            <View style={styles.modalContent}>
+                                <Text style={styles.modalTitle}>Nuevo piloto</Text>
 
-                        <Controller
-                            control={control}
-                            name="name"
-                            render={({ field: { onChange, value }, fieldState: { error } }) => (
-                                <Input label="Name" value={value} onChangeText={onChange} error={error?.message} />
-                            )}
-                        />
-                        <Controller
-                            control={control}
-                            name="cc"
-                            render={({ field: { onChange, value }, fieldState: { error } }) => (
-                                <Input label="CC" value={value} onChangeText={onChange} error={error?.message} />
-                            )}
-                        />
-                        <Controller
-                            control={control}
-                            name="licenseNum"
-                            render={({ field: { onChange, value }, fieldState: { error } }) => (
-                                <Input label="License Number" value={value} onChangeText={onChange} error={error?.message} />
-                            )}
-                        />
-                        <Controller
-                            control={control}
-                            name="licenseType"
-                            render={({ field: { onChange, value }, fieldState: { error } }) => (
-                                <Input label="License Type" value={value} onChangeText={onChange} error={error?.message} />
-                            )}
-                        />
+                                <Controller
+                                    control={control}
+                                    name="name"
+                                    render={({ field: { onChange, value }, fieldState: { error } }) => (
+                                        <Input label="Nombre" value={value} onChangeText={onChange} error={error?.message} />
+                                    )}
+                                />
+                                <Controller
+                                    control={control}
+                                    name="cc"
+                                    render={({ field: { onChange, value }, fieldState: { error } }) => (
+                                        <Input label="Documento" value={value} onChangeText={onChange} error={error?.message} />
+                                    )}
+                                />
+                                <Controller
+                                    control={control}
+                                    name="licenseNum"
+                                    render={({ field: { onChange, value }, fieldState: { error } }) => (
+                                        <Input label="Número de licencia" value={value} onChangeText={onChange} error={error?.message} />
+                                    )}
+                                />
+                                <Controller
+                                    control={control}
+                                    name="licenseType"
+                                    render={({ field: { onChange, value }, fieldState: { error } }) => (
+                                        <Input label="Tipo de licencia" value={value} onChangeText={onChange} error={error?.message} />
+                                    )}
+                                />
 
-                        <Text style={styles.label}>License Expiry</Text>
-                        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
-                            <Text style={styles.dateText}>{licenseExpiry.toLocaleDateString()}</Text>
-                        </TouchableOpacity>
-                        {showDatePicker && (
-                            <DateTimePicker
-                                value={licenseExpiry}
-                                mode="date"
-                                display="default"
-                                onChange={(event, selectedDate) => {
-                                    setShowDatePicker(false);
-                                    if (selectedDate) setValue('licenseExpiry', selectedDate);
-                                }}
-                            />
-                        )}
+                                <Text style={styles.label}>Vencimiento licencia</Text>
+                                <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
+                                    <Text style={styles.dateText}>{licenseExpiry.toLocaleDateString()}</Text>
+                                </TouchableOpacity>
+                                {showDatePicker && (
+                                    <DateTimePicker
+                                        value={licenseExpiry}
+                                        mode="date"
+                                        display="default"
+                                        onChange={(event, selectedDate) => {
+                                            setShowDatePicker(false);
+                                            if (selectedDate) setValue('licenseExpiry', selectedDate);
+                                        }}
+                                    />
+                                )}
 
-                        <View style={styles.modalButtons}>
-                            <Button title="Cancel" variant="outline" onPress={() => setModalVisible(false)} style={{ flex: 1, marginRight: 8 }} />
-                            <Button title="Save" onPress={handleSubmit(onSubmit)} style={{ flex: 1, marginLeft: 8 }} />
-                        </View>
-                    </View>
+                                <View style={styles.modalButtons}>
+                                    <Button title="Cancelar" variant="outline" onPress={() => setModalVisible(false)} style={{ flex: 1, marginRight: 8 }} />
+                                    <Button title="Guardar" onPress={handleSubmit(onSubmit)} style={{ flex: 1, marginLeft: 8 }} />
+                                </View>
+                            </View>
+                        </ScrollView>
+                    </KeyboardAvoidingView>
                 </View>
             </Modal>
         </ScreenLayout>

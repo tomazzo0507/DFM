@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert, TextStyle } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert, TextStyle, TouchableOpacity } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -7,25 +7,23 @@ import { ScreenLayout } from '../../components/ScreenLayout';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Picker } from '../../components/ui/Picker';
-import { MultiPicker } from '../../components/ui/MultiPicker';
 import { colors, spacing, typography } from '../../theme';
 import { db } from '../../db';
 import { Pilot, Aircraft } from '../../types';
 
 const preFlightSchema = z.object({
-    pilotInternal: z.number().min(1, 'Required'),
-    pilotExternal: z.number().min(1, 'Required'),
-    missionLeader: z.number().optional(),
-    flightEngineer: z.number().optional(),
-    batteries: z.array(z.string()).min(1, 'Select at least one battery'),
-    camera: z.string().optional(),
-    date: z.string().trim().min(1, 'Required'),        // DD/MM/AAAA
-    time: z.string().trim().min(1, 'Required'),        // HH:MM
-    coordinates: z.string().trim().min(1, 'Required'),
-    locationGeneral: z.string().trim().min(1, 'Required'),
-    purpose: z.string().trim().min(1, 'Required'),
-    estimatedTime: z.string().trim().min(1, 'Required'),
-    aircraftState: z.string().trim().min(1, 'Required'), // Estado prevuelo
+    pilot: z.number().min(1, 'Requerido'),
+    missionLeader: z.string().optional(),
+    flightEngineer: z.string().optional(),
+    batteries: z.string().trim().min(1, 'Requerido'),
+    cameras: z.array(z.string()).optional(),
+    date: z.string().trim().min(1, 'Requerido'),        // DD/MM/AAAA
+    time: z.string().trim().min(1, 'Requerido'),        // HH:MM
+    coordinates: z.string().trim().min(1, 'Requerido'),
+    locationGeneral: z.string().trim().min(1, 'Requerido'),
+    purpose: z.string().trim().min(1, 'Requerido'),
+    estimatedTime: z.string().trim().min(1, 'Requerido'),
+    aircraftState: z.string().trim().min(1, 'Requerido'), // Estado prevuelo
 });
 
 type PreFlightFormData = z.infer<typeof preFlightSchema>;
@@ -38,7 +36,8 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
     const { control, handleSubmit, setValue, watch } = useForm<PreFlightFormData>({
         resolver: zodResolver(preFlightSchema),
         defaultValues: {
-            batteries: [],
+            batteries: '',
+            cameras: [],
             date: '',
             time: '',
             coordinates: '',
@@ -53,7 +52,14 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
         const loadData = async () => {
             try {
                 const pilotsRes = await db.getAllAsync('SELECT * FROM pilots');
-                setPilots(pilotsRes as Pilot[]);
+                setPilots((pilotsRes as any[]).map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    cc: r.cc,
+                    licenseNum: r.license_num,
+                    licenseType: r.license_type,
+                    licenseExpiry: r.license_expiry,
+                })));
 
                 const aircraftRes = await db.getFirstAsync('SELECT * FROM aircraft LIMIT 1');
                 if (aircraftRes) {
@@ -88,14 +94,13 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
                     'Programado',
                     new Date().toISOString(),
                     JSON.stringify({
-                        pilotInternal: data.pilotInternal,
-                        pilotExternal: data.pilotExternal,
+                        pilot: data.pilot,
                         missionLeader: data.missionLeader,
                         flightEngineer: data.flightEngineer,
                     }),
                     JSON.stringify({
                         batteries: data.batteries,
-                        camera: data.camera,
+                        cameras: data.cameras || [],
                     }),
                     JSON.stringify({
                         fecha: data.date,
@@ -133,90 +138,75 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
         })
         .map(p => ({ label: p.name, value: p.id }));
 
-    const batteryItems = aircraft ? [
-        ...aircraft.batteriesMain.map(b => ({ label: `Main: ${b.code}`, value: b.code })),
-        ...aircraft.batteriesSpare.map(b => ({ label: `Spare: ${b.code}`, value: b.code })),
-    ] : [];
-
     const cameraItems = aircraft ? aircraft.cameras.map(c => ({ label: c.code, value: c.id })) : [];
+
+    const selectedCameras = watch('cameras') || [];
+    const availableCameraItems = cameraItems.filter(ci => !selectedCameras.includes(String(ci.value)));
 
     return (
         <ScreenLayout>
             <ScrollView contentContainerStyle={styles.content}>
-                <Text style={styles.title}>Pre-Flight Form</Text>
-                <Text style={styles.subtitle}>{type} Flight</Text>
+                <Text style={styles.title}>Formulario de Prevuelo</Text>
+                <Text style={styles.subtitle}>Vuelo {type}</Text>
 
-                <Text style={styles.sectionTitle}>General Info</Text>
+                <Text style={styles.sectionTitle}>Información general</Text>
                 <Controller
                     control={control}
                     name="date"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Date (DD/MM/AAAA)" value={value} onChangeText={onChange} error={error?.message} />
+                        <Input label="Fecha (DD/MM/AAAA)" value={value} onChangeText={onChange} error={error?.message} />
                     )}
                 />
                 <Controller
                     control={control}
                     name="time"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Time (HH:MM)" value={value} onChangeText={onChange} error={error?.message} />
+                        <Input label="Hora (HH:MM)" value={value} onChangeText={onChange} error={error?.message} />
                     )}
                 />
                 <Controller
                     control={control}
                     name="purpose"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Purpose of Flight" value={value} onChangeText={onChange} error={error?.message} />
+                        <Input label="Propósito del vuelo" value={value} onChangeText={onChange} error={error?.message} />
                     )}
                 />
                 <Controller
                     control={control}
                     name="estimatedTime"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Estimated Time (min)" value={value} onChangeText={onChange} keyboardType="numeric" error={error?.message} />
+                        <Input label="Tiempo estimado (min)" value={value} onChangeText={onChange} keyboardType="numeric" error={error?.message} />
                     )}
                 />
                 <Controller
                     control={control}
                     name="coordinates"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Coordinates" value={value} onChangeText={onChange} error={error?.message} />
+                        <Input label="Coordenadas" value={value} onChangeText={onChange} error={error?.message} />
                     )}
                 />
                 <Controller
                     control={control}
                     name="locationGeneral"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="General Location" value={value} onChangeText={onChange} error={error?.message} />
+                        <Input label="Ubicación general" value={value} onChangeText={onChange} error={error?.message} />
                     )}
                 />
                 <Controller
                     control={control}
                     name="aircraftState"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Aircraft State (Pre-flight)" value={value} onChangeText={onChange} error={error?.message} multiline numberOfLines={3} style={{ height: 80 }} />
+                        <Input label="Estado de la aeronave (prevuelo)" value={value} onChangeText={onChange} error={error?.message} multiline numberOfLines={3} style={{ height: 80 }} />
                     )}
                 />
 
-                <Text style={styles.sectionTitle}>Crew</Text>
+                <Text style={styles.sectionTitle}>Tripulación</Text>
                 <Controller
                     control={control}
-                    name="pilotInternal"
+                    name="pilot"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
                         <Picker
-                            label="Internal Pilot (Required)"
-                            items={pilotItems}
-                            value={value}
-                            onValueChange={onChange}
-                            error={error?.message}
-                        />
-                    )}
-                />
-                <Controller
-                    control={control}
-                    name="pilotExternal"
-                    render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Picker
-                            label="External Pilot (Required)"
+                            label="Piloto (Requerido)"
                             items={pilotItems}
                             value={value}
                             onValueChange={onChange}
@@ -228,55 +218,58 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
                     control={control}
                     name="missionLeader"
                     render={({ field: { onChange, value } }) => (
-                        <Picker
-                            label="Mission Leader (Optional)"
-                            items={pilotItems}
-                            value={value}
-                            onValueChange={onChange}
-                        />
+                        <Input label="Líder de misión (opcional)" value={value || ''} onChangeText={onChange} />
                     )}
                 />
                 <Controller
                     control={control}
                     name="flightEngineer"
                     render={({ field: { onChange, value } }) => (
-                        <Picker
-                            label="Flight Engineer (Optional)"
-                            items={pilotItems}
-                            value={value}
-                            onValueChange={onChange}
-                        />
+                        <Input label="Ingeniero de vuelo (opcional)" value={value || ''} onChangeText={onChange} />
                     )}
                 />
 
-                <Text style={styles.sectionTitle}>Equipment</Text>
+                <Text style={styles.sectionTitle}>Equipos</Text>
                 <Controller
                     control={control}
                     name="batteries"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <MultiPicker
-                            label="Batteries (Select all used)"
-                            items={batteryItems}
-                            values={value}
-                            onValuesChange={onChange}
-                            error={error?.message}
-                        />
+                        <Input label="Baterías (descripción)" value={value} onChangeText={onChange} error={error?.message} />
                     )}
                 />
                 <Controller
                     control={control}
-                    name="camera"
-                    render={({ field: { onChange, value } }) => (
+                    name="cameras"
+                    render={({ field: { value } }) => (
+                        <View>
+                            <Text style={{ ...(typography.body as TextStyle), marginBottom: 8 }}>Cámaras seleccionadas: {value?.length || 0}</Text>
+                            {availableCameraItems.length > 0 && (
                         <Picker
-                            label="Camera (Optional)"
-                            items={cameraItems}
-                            value={value}
-                            onValueChange={onChange}
-                        />
+                                    label="Seleccionar cámara"
+                                    items={availableCameraItems}
+                                    value={undefined}
+                                    onValueChange={(v) => setValue('cameras', [ ...(value || []), String(v) ])}
+                                />
+                            )}
+                            {availableCameraItems.length === 0 && (
+                                <Text style={{ ...(typography.caption as TextStyle) }}>No hay más cámaras disponibles para agregar.</Text>
+                            )}
+                            {value && value.length > 0 && value.map((cid: string) => (
+                                <View key={cid} style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical: 4 }}>
+                                    <Text style={{ ...(typography.body as TextStyle) }}>{cameraItems.find(ci => String(ci.value) === cid)?.label || cid}</Text>
+                                    <TouchableOpacity onPress={() => setValue('cameras', (value as string[]).filter(x => x !== cid))}>
+                                        <Text style={{ color: colors.secondary }}>Eliminar</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                            {availableCameraItems.length > 0 && (
+                                <Button title="Agregar cámara" onPress={() => { /* se agrega mediante el Picker arriba */ }} style={{ marginTop: 8 }} />
+                            )}
+                        </View>
                     )}
                 />
 
-                <Button title="Start Flight" onPress={handleSubmit(onSubmit)} style={{ marginTop: spacing.xl }} />
+                <Button title="Iniciar vuelo" onPress={handleSubmit(onSubmit)} style={{ marginTop: spacing.xl }} />
             </ScrollView>
         </ScreenLayout>
     );
@@ -286,15 +279,8 @@ const styles = StyleSheet.create({
     content: {
         paddingBottom: 40,
     },
-    title: {
-        ...(typography.h2 as TextStyle),
-        color: colors.primary,
-    },
-    subtitle: {
-        ...(typography.h3 as TextStyle),
-        color: colors.textSecondary,
-        marginBottom: spacing.l,
-    },
+    title: { ...(typography.h2 as TextStyle), color: colors.primary },
+    subtitle: { ...(typography.h3 as TextStyle), color: colors.textSecondary, marginBottom: spacing.l },
     sectionTitle: {
         ...(typography.h3 as TextStyle),
         marginTop: spacing.l,

@@ -83,18 +83,18 @@ export const FlightBookScreen = () => {
     return (
         <ScreenLayout>
             <View style={styles.header}>
-                <Text style={styles.title}>Flight Book</Text>
-                <Button title="Export PDF" onPress={exportPDF} style={{ height: 40 }} />
+                <Text style={styles.title}>Libro de vuelo</Text>
+                <Button title="Exportar PDF" onPress={exportPDF} style={{ height: 40 }} />
             </View>
 
             <ScrollView horizontal>
                 <View>
                     <View style={[styles.row, styles.headerRow]}>
                         <Text style={[styles.cell, styles.headerCell, { width: 50 }]}>ID</Text>
-                        <Text style={[styles.cell, styles.headerCell, { width: 150 }]}>Date</Text>
-                        <Text style={[styles.cell, styles.headerCell, { width: 100 }]}>Type</Text>
-                        <Text style={[styles.cell, styles.headerCell, { width: 100 }]}>Status</Text>
-                        <Text style={[styles.cell, styles.headerCell, { width: 100 }]}>Duration</Text>
+                        <Text style={[styles.cell, styles.headerCell, { width: 150 }]}>Fecha</Text>
+                        <Text style={[styles.cell, styles.headerCell, { width: 100 }]}>Tipo</Text>
+                        <Text style={[styles.cell, styles.headerCell, { width: 100 }]}>Estado</Text>
+                        <Text style={[styles.cell, styles.headerCell, { width: 100 }]}>Duración</Text>
                     </View>
                     <ScrollView>
                         {flights.map((item) => (

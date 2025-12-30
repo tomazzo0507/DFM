@@ -49,15 +49,14 @@ export type FlightType = 'Operativo' | 'Ensayo';
 export type FlightStatus = 'Programado' | 'EnCurso' | 'Finalizado' | 'Abortado';
 
 export interface FlightCrew {
-    pilotInternal: number; // Pilot ID
-    pilotExternal: number; // Pilot ID
-    missionLeader?: number; // Pilot ID
-    flightEngineer?: number; // Pilot ID
+    pilot: number; // Pilot ID
+    missionLeader?: string;
+    flightEngineer?: string;
 }
 
 export interface FlightEquipment {
-    batteries: string[]; // Battery IDs
-    camera?: string; // Camera ID
+    batteries: string; // free text description
+    cameras?: string[]; // Camera IDs or codes
 }
 
 export interface Flight {

@@ -54,8 +54,8 @@ export const ChecklistScreen = ({ navigation, route }: any) => {
     return (
         <ScreenLayout>
             <View style={styles.header}>
-                <Text style={styles.title}>{stage} Checklist</Text>
-                <Text style={styles.subtitle}>{type} Flight</Text>
+                <Text style={styles.title}>Lista de verificación: {stage}</Text>
+                <Text style={styles.subtitle}>Vuelo {type}</Text>
             </View>
 
             <ScrollView contentContainerStyle={styles.list}>
@@ -72,7 +72,7 @@ export const ChecklistScreen = ({ navigation, route }: any) => {
             </ScrollView>
 
             <Button
-                title="Next"
+                title="Siguiente"
                 onPress={handleNext}
                 disabled={!allChecked}
                 style={styles.button}

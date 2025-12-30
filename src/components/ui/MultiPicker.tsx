@@ -82,10 +82,10 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         padding: spacing.m,
     },
-    inputError: { borderColor: colors.error },
+    inputError: { borderColor: colors.border },
     text: { fontSize: 16, color: colors.text },
     placeholder: { color: colors.textSecondary },
-    errorText: { ...typography.caption, color: colors.error, marginTop: spacing.xs },
+    errorText: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',

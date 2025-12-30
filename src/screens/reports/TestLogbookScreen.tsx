@@ -69,7 +69,7 @@ export const TestLogbookScreen = () => {
 			<View style={styles.info}>
 				<Text style={styles.date}>{new Date(item.date).toLocaleDateString()} {new Date(item.date).toLocaleTimeString()}</Text>
 				<Text style={styles.type}>{item.type}</Text>
-				<Text style={styles.duration}>Duration: {Math.floor(item.duration / 60)}m {item.duration % 60}s</Text>
+				<Text style={styles.duration}>Duración: {Math.floor(item.duration / 60)}m {item.duration % 60}s</Text>
 			</View>
 		</TouchableOpacity>
 	);
@@ -85,7 +85,7 @@ export const TestLogbookScreen = () => {
 				renderItem={renderItem}
 				keyExtractor={(item) => item.id.toString()}
 				contentContainerStyle={styles.list}
-				ListEmptyComponent={<Text style={styles.emptyText}>No flight reports yet.</Text>}
+				ListEmptyComponent={<Text style={styles.emptyText}>Aún no hay reportes de vuelo.</Text>}
 			/>
 		</ScreenLayout>
 	);

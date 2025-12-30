@@ -40,11 +40,11 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     inputError: {
-        borderColor: colors.error,
+        borderColor: colors.border,
     },
     errorText: {
         ...typography.caption,
-        color: colors.error,
+        color: colors.textSecondary,
         marginTop: spacing.xs,
     },
 });
