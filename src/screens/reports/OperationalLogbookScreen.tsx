@@ -18,7 +18,30 @@ export const OperationalLogbookScreen = () => {
 			const loadFlights = async () => {
 				try {
 					const result = await db.getAllAsync('SELECT * FROM flights WHERE type = ? AND pdf_path IS NOT NULL ORDER BY date DESC', ['Operativo']);
-					setFlights(result as Flight[]);
+					const enriched = [] as any[];
+					for (const row of (result as any[])) {
+						let pilotName = '';
+						let pilotCC = '';
+						let coords = '';
+						let cargaStr = 'Sin carga';
+						try {
+							const crew = row.crew ? JSON.parse(row.crew) : null;
+							const prev = row.prevuelo ? JSON.parse(row.prevuelo) : null;
+							const carga = row.carga ? JSON.parse(row.carga) : null;
+							if (crew?.pilot) {
+								const prow: any = await db.getFirstAsync('SELECT name, cc FROM pilots WHERE id = ?', [crew.pilot]);
+								pilotName = prow?.name || '';
+								pilotCC = prow?.cc || '';
+							}
+							if (prev?.coordenadas) coords = prev.coordenadas;
+							if (carga?.hasPayload) {
+								const w = (carga.weight ?? '').toString();
+								cargaStr = `Con carga${w ? ` - ${w} kg` : ''}`;
+							}
+						} catch {}
+						enriched.push({ ...row, pilotName, pilotCC, coords, cargaStr });
+					}
+					setFlights(enriched as any);
 				} catch (error) {
 					console.error(error);
 				}
@@ -50,7 +73,7 @@ export const OperationalLogbookScreen = () => {
 				return;
 			}
 			const outDir = new FileSystem.Directory(FileSystem.Paths.document, 'DFM', 'Export', 'BitacoraOperativa');
-			try { outDir.create({ intermediates: true, idempotent: true }); } catch {}
+			try { await outDir.create({ intermediates: true, idempotent: true }); } catch {}
 			const outFile = new FileSystem.File(outDir, 'bitacora_operativa.zip');
 			const path = await zipFilesBase64(files, outFile.uri);
 			Alert.alert('Exported', `Saved to: ${path}`);
@@ -70,6 +93,9 @@ export const OperationalLogbookScreen = () => {
 				<Text style={styles.date}>{new Date(item.date).toLocaleDateString()} {new Date(item.date).toLocaleTimeString()}</Text>
 				<Text style={styles.type}>{item.type}</Text>
 				<Text style={styles.duration}>Duración: {Math.floor(item.duration / 60)}m {item.duration % 60}s</Text>
+				{!!(item as any).pilotName && <Text style={styles.meta}>Piloto: {(item as any).pilotName} {(item as any).pilotCC ? `(Doc: ${(item as any).pilotCC})` : ''}</Text>}
+				{!!(item as any).cargaStr && <Text style={styles.meta}>{(item as any).cargaStr}</Text>}
+				{!!(item as any).coords && <Text style={styles.meta}>Coordenadas: {(item as any).coords}</Text>}
 			</View>
 		</TouchableOpacity>
 	);
@@ -121,6 +147,7 @@ const styles = StyleSheet.create({
 	date: { ...(typography.body as TextStyle), fontWeight: '600' as TextStyle['fontWeight'] },
 	type: { ...typography.caption, color: colors.textSecondary },
 	duration: { ...typography.caption, marginTop: 2 },
+	meta: { ...typography.caption, color: colors.textSecondary },
 	emptyText: { ...typography.body, textAlign: 'center', marginTop: spacing.xl, color: colors.textSecondary },
 });
 

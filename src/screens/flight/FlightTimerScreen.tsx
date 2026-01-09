@@ -7,6 +7,7 @@ import { colors, spacing, typography } from '../../theme';
 import { db } from '../../db';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
+import * as FSLegacy from 'expo-file-system/legacy';
 
 export const FlightTimerScreen = ({ navigation, route }: any) => {
     const { flightId, type } = route.params;
@@ -122,11 +123,37 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
           <p>Fecha: ${date}</p>
         </body></html>`;
         const { uri } = await Print.printToFileAsync({ html });
-        const fileName = `Flight_${flightId}_ABORTADO.pdf`;
-        const destFile = new FileSystem.File(FileSystem.Paths.document, fileName);
-        const srcFile = new FileSystem.File(uri);
-        srcFile.move(destFile);
-        return destFile.uri;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A1',location:'FlightTimerScreen:generateAbortPDF:printed',message:'printToFileAsync returned',data:{tempUri:uri},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        try {
+            const dir = new FileSystem.Directory(FileSystem.Paths.document, 'DFM', 'Bitacora', 'Abortados');
+            try { await dir.create({ intermediates: true, idempotent: true }); } catch {}
+            const destFile = new FileSystem.File(dir, `Flight_${flightId}_ABORTADO.pdf`);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A2',location:'FlightTimerScreen:generateAbortPDF:newFS:beforeMove',message:'moving with new FS API',data:{destUri:destFile.uri},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            await new FileSystem.File(uri).move(destFile);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A2',location:'FlightTimerScreen:generateAbortPDF:newFS:afterMove',message:'moved with new FS API',data:{finalUri:destFile.uri},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            return destFile.uri;
+        } catch {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A3',location:'FlightTimerScreen:generateAbortPDF:newFS:error',message:'new FS move failed; using legacy',data:{},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            const baseDir = (FSLegacy.documentDirectory || '') + 'DFM/Bitacora/Abortados';
+            try { await FSLegacy.makeDirectoryAsync(baseDir, { intermediates: true }); } catch {}
+            const destPath = `${baseDir}/Flight_${flightId}_ABORTADO.pdf`;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A4',location:'FlightTimerScreen:generateAbortPDF:legacy:beforeMove',message:'moving with legacy FS API',data:{destPath},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            await FSLegacy.moveAsync({ from: uri, to: destPath });
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A4',location:'FlightTimerScreen:generateAbortPDF:legacy:afterMove',message:'moved with legacy FS API',data:{finalUri:destPath},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            return destPath;
+        }
     };
 
     const handleStop = async () => {
@@ -329,14 +356,32 @@ export const FlightTimerScreen = ({ navigation, route }: any) => {
                                                   <h2>ESTADO DEL VUELO: ABORTADO${abortReason ? ' - ' + abortReason : ''}</h2>
                                                   <p>Fecha: ${date}</p>
                                                 </body></html>`;
-                                            const { uri } = await Print.printToFileAsync({ html });
-                                            const dirObj = new FileSystem.Directory(FileSystem.Paths.document, 'DFM', 'Bitacora', type);
-                                            try { dirObj.create({ intermediates: true, idempotent: true }); } catch {}
-                                            const fileName = `Flight_${flightId}_ABORTADO.pdf`;
-                                            const destFile = new FileSystem.File(dirObj, fileName);
-                                            const srcFile = new FileSystem.File(uri);
-                                            srcFile.move(destFile);
-                                            const newPath = destFile.uri;
+                                        const { uri } = await Print.printToFileAsync({ html });
+                                            // #region agent log
+                                            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A5',location:'FlightTimerScreen:abortConfirm:printed',message:'printToFileAsync returned',data:{tempUri:uri},timestamp:Date.now()})}).catch(()=>{});
+                                            // #endregion
+                                            let newPath: string;
+                                            try {
+                                                const dir = new FileSystem.Directory(FileSystem.Paths.document, 'DFM', 'Bitacora', type);
+                                                try { await dir.create({ intermediates: true, idempotent: true }); } catch {}
+                                                const destFile = new FileSystem.File(dir, `Flight_${flightId}_ABORTADO.pdf`);
+                                                // #region agent log
+                                                fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A6',location:'FlightTimerScreen:abortConfirm:newFS:beforeMove',message:'moving with new FS API',data:{destUri:destFile.uri},timestamp:Date.now()})}).catch(()=>{});
+                                                // #endregion
+                                                await new FileSystem.File(uri).move(destFile);
+                                                newPath = destFile.uri;
+                                            } catch {
+                                                const baseDir = (FSLegacy.documentDirectory || '') + `DFM/Bitacora/${type}`;
+                                                try { await FSLegacy.makeDirectoryAsync(baseDir, { intermediates: true }); } catch {}
+                                                newPath = `${baseDir}/Flight_${flightId}_ABORTADO.pdf`;
+                                                // #region agent log
+                                                fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A7',location:'FlightTimerScreen:abortConfirm:legacy:beforeMove',message:'moving with legacy FS API',data:{destPath:newPath},timestamp:Date.now()})}).catch(()=>{});
+                                                // #endregion
+                                                await FSLegacy.moveAsync({ from: uri, to: newPath });
+                                            }
+                                            // #region agent log
+                                            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A8',location:'FlightTimerScreen:abortConfirm:dbUpdate',message:'updating DB with pdf path',data:{newPath},timestamp:Date.now()})}).catch(()=>{});
+                                            // #endregion
                                             await db.runAsync(
                                                 `UPDATE flights SET status = ?, pdf_path = ? WHERE id = ?`,
                                                 ['Abortado', newPath, flightId]

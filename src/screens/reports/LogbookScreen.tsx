@@ -7,6 +7,7 @@ import { colors, spacing, typography } from '../../theme';
 import { db } from '../../db';
 import { Flight } from '../../types';
 import { FileText } from 'lucide-react-native';
+import * as FileSystem from 'expo-file-system';
 
 export const LogbookScreen = () => {
     const [flights, setFlights] = useState<Flight[]>([]);
@@ -16,7 +17,31 @@ export const LogbookScreen = () => {
             const loadFlights = async () => {
                 try {
                     const result = await db.getAllAsync('SELECT * FROM flights WHERE pdf_path IS NOT NULL ORDER BY date DESC');
-                    setFlights(result as Flight[]);
+                    // Enriquecer con datos adicionales
+                    const enriched = [] as any[];
+                    for (const row of (result as any[])) {
+                        let pilotName = '';
+                        let pilotCC = '';
+                        let coords = '';
+                        let cargaStr = 'Sin carga';
+                        try {
+                            const crew = row.crew ? JSON.parse(row.crew) : null;
+                            const prev = row.prevuelo ? JSON.parse(row.prevuelo) : null;
+                            const carga = row.carga ? JSON.parse(row.carga) : null;
+                            if (crew?.pilot) {
+                                const prow: any = await db.getFirstAsync('SELECT name, cc FROM pilots WHERE id = ?', [crew.pilot]);
+                                pilotName = prow?.name || '';
+                                pilotCC = prow?.cc || '';
+                            }
+                            if (prev?.coordenadas) coords = prev.coordenadas;
+                            if (carga?.hasPayload) {
+                                const w = (carga.weight ?? '').toString();
+                                cargaStr = `Con carga${w ? ` - ${w} kg` : ''}`;
+                            }
+                        } catch {}
+                        enriched.push({ ...row, pilotName, pilotCC, coords, cargaStr });
+                    }
+                    setFlights(enriched as any);
                 } catch (error) {
                     console.error(error);
                 }
@@ -47,7 +72,10 @@ export const LogbookScreen = () => {
             <View style={styles.info}>
                 <Text style={styles.date}>{new Date(item.date).toLocaleDateString()} {new Date(item.date).toLocaleTimeString()}</Text>
                 <Text style={styles.type}>{item.type}</Text>
-                <Text style={styles.duration}>Duration: {Math.floor(item.duration / 60)}m {item.duration % 60}s</Text>
+                <Text style={styles.duration}>Duración: {Math.floor((item as any).duration / 60)}m {(item as any).duration % 60}s</Text>
+                {!!(item as any).pilotName && <Text style={styles.meta}>Piloto: {(item as any).pilotName} {(item as any).pilotCC ? `(Doc: ${(item as any).pilotCC})` : ''}</Text>}
+                {!!(item as any).cargaStr && <Text style={styles.meta}>{(item as any).cargaStr}</Text>}
+                {!!(item as any).coords && <Text style={styles.meta}>Coordenadas: {(item as any).coords}</Text>}
             </View>
         </TouchableOpacity>
     );
@@ -100,6 +128,10 @@ const styles = StyleSheet.create({
     duration: {
         ...typography.caption,
         marginTop: 2,
+    },
+    meta: {
+        ...typography.caption,
+        color: colors.textSecondary,
     },
     emptyText: {
         ...typography.body,

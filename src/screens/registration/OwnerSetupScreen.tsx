@@ -10,9 +10,9 @@ import { colors, spacing, typography } from '../../theme';
 import { db } from '../../db';
 
 const ownerSchema = z.object({
-    name: z.string().min(1, 'Required'),
+    name: z.string().min(1, 'Requerido'),
     idType: z.enum(['CC', 'NIT']),
-    idNum: z.string().min(1, 'Required'),
+    idNum: z.string().min(1, 'Requerido'),
 });
 
 type OwnerFormData = z.infer<typeof ownerSchema>;
@@ -35,12 +35,12 @@ export const OwnerSetupScreen = ({ navigation }: any) => {
                 `INSERT INTO owners (name, id_type, id_num) VALUES (?, ?, ?)`,
                 [data.name, data.idType, data.idNum]
             );
-            Alert.alert('Success', 'Owner registered successfully', [
-                { text: 'OK', onPress: () => navigation.navigate('PilotManagement') }
+            Alert.alert('Éxito', 'Propietario registrado correctamente', [
+                { text: 'Aceptar', onPress: () => navigation.navigate('PilotManagement') }
             ]);
         } catch (error) {
             console.error(error);
-            Alert.alert('Error', 'Failed to save owner');
+            Alert.alert('Error', 'No se pudo guardar el propietario');
         }
     };
 
@@ -51,7 +51,7 @@ export const OwnerSetupScreen = ({ navigation }: any) => {
                     control={control}
                     name="name"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="Owner Name" value={value} onChangeText={onChange} error={error?.message} />
+                        <Input label="Nombre del propietario" value={value} onChangeText={onChange} error={error?.message} />
                     )}
                 />
 
@@ -74,11 +74,11 @@ export const OwnerSetupScreen = ({ navigation }: any) => {
                     control={control}
                     name="idNum"
                     render={({ field: { onChange, value }, fieldState: { error } }) => (
-                        <Input label="ID Number" value={value} onChangeText={onChange} error={error?.message} />
+                        <Input label="Número de identificación" value={value} onChangeText={onChange} error={error?.message} />
                     )}
                 />
 
-                <Button title="Next: Pilots" onPress={handleSubmit(onSubmit)} style={{ marginTop: 24 }} />
+                <Button title="Siguiente: Pilotos" onPress={handleSubmit(onSubmit)} style={{ marginTop: 24 }} />
             </View>
         </ScreenLayout>
     );

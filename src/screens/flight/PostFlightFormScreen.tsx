@@ -11,6 +11,7 @@ import { colors, spacing, typography } from '../../theme';
 import { db } from '../../db';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
+import * as FSLegacy from 'expo-file-system/legacy';
 import { getLogoBase64, wrapReportHTML } from '../../utils/report';
 import { db as database } from '../../db';
 
@@ -74,6 +75,9 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
     };
 
     const generatePDF = async (data: PostFlightFormData, flightRow: any) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'PostFlightFormScreen:generatePDF:entry',message:'enter generatePDF',data:{pdfName:data.pdfName,flightId,flightType:flightRow?.type},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         // Fetch aircraft and pilots
         const aircraftRow: any = await database.getFirstAsync('SELECT * FROM aircraft LIMIT 1');
         const aircraft = aircraftRow
@@ -326,15 +330,43 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
         const html = wrapReportHTML(body, logo);
 
         const { uri } = await Print.printToFileAsync({ html });
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'PostFlightFormScreen:generatePDF:printed',message:'printToFileAsync returned',data:{tempUri:uri},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
 
         // Normalize pdf name: underscores, 150 chars
         const normalized = data.pdfName.replace(/\s+/g, '_').slice(0, 150);
-        const dirObj = new FileSystem.Directory(FileSystem.Paths.document, 'DFM', 'Bitacora', type);
-        try { dirObj.create({ intermediates: true, idempotent: true }); } catch {}
-        const destFile = new FileSystem.File(dirObj, `${normalized}.pdf`);
-        const srcFile = new FileSystem.File(uri);
-        srcFile.move(destFile);
-        return destFile.uri;
+
+        // Try new FS API first
+        try {
+            const dir = new FileSystem.Directory(FileSystem.Paths.document, 'DFM', 'Bitacora', type);
+            try { await dir.create({ intermediates: true, idempotent: true }); } catch {}
+            const destFile = new FileSystem.File(dir, `${normalized}.pdf`);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'PostFlightFormScreen:generatePDF:newFS:beforeMove',message:'moving with new FS API',data:{destUri:destFile.uri},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            await new FileSystem.File(uri).move(destFile);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'PostFlightFormScreen:generatePDF:newFS:afterMove',message:'moved with new FS API',data:{finalUri:destFile.uri},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            return destFile.uri;
+        } catch (e) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'PostFlightFormScreen:generatePDF:newFS:error',message:'new FS move failed',data:{error:String((e as any)?.message||(e as any))},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            // Fallback to legacy FS API
+            const baseDir = (FSLegacy.documentDirectory || '') + `DFM/Bitacora/${type}`;
+            try { await FSLegacy.makeDirectoryAsync(baseDir, { intermediates: true }); } catch {}
+            const destPath = `${baseDir}/${normalized}.pdf`;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H5',location:'PostFlightFormScreen:generatePDF:legacy:beforeMove',message:'moving with legacy FS API',data:{destPath},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            await FSLegacy.moveAsync({ from: uri, to: destPath });
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H5',location:'PostFlightFormScreen:generatePDF:legacy:afterMove',message:'moved with legacy FS API',data:{finalUri:destPath},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            return destPath;
+        }
     };
 
     const onSubmit = async (data: PostFlightFormData) => {
@@ -350,6 +382,9 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
             const flightRes = await db.getFirstAsync('SELECT * FROM flights WHERE id = ?', [flightId]);
 
             const pdfPath = await generatePDF(data, flightRes);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H6',location:'PostFlightFormScreen:onSubmit:pdfPath',message:'pdf generated',data:{pdfPath},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
 
             await db.runAsync(
                 `UPDATE flights SET postvuelo = ?, signatures = ?, pdf_path = ? WHERE id = ?`,

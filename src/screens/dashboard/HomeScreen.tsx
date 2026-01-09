@@ -34,6 +34,7 @@ export const HomeScreen = ({ navigation }: any) => {
             if (result) {
                 const parsed = {
                     ...result,
+                    totalHours: (result as any).total_hours || 0,
                     motors: JSON.parse((result as any).motors),
                     batteriesMain: JSON.parse((result as any).batteries_main),
                     batteriesSpare: JSON.parse((result as any).batteries_spare),

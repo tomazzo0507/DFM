@@ -47,6 +47,12 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
         if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
         return 0;
     };
+    const minutesToHHMM = (minutes: number) => {
+        const m = Math.max(0, Math.floor(minutes || 0));
+        const hh = Math.floor(m / 60).toString().padStart(2, '0');
+        const mm = (m % 60).toString().padStart(2, '0');
+        return `${hh}:${mm}`;
+    };
 
     const { control, handleSubmit, watch, setValue, getValues } = useForm<AircraftFormData>({
         resolver: zodResolver(aircraftSchema) as any,
@@ -103,6 +109,32 @@ export const AircraftSetupScreen = ({ navigation }: any) => {
             replaceMotors(newMotors);
         }
     }, [numMotors]);
+
+    // Prefill with existing aircraft data if present
+    React.useEffect(() => {
+        const loadExisting = async () => {
+            try {
+                const existing: any = await db.getFirstAsync('SELECT * FROM aircraft LIMIT 1');
+                if (!existing) return;
+                setValue('name', existing.name || '');
+                setValue('code', existing.code || '');
+                setValue('partNum', existing.part_num || '');
+                setValue('serialNum', existing.serial_num || '');
+                const motors = JSON.parse(existing.motors || '[]') as Array<{ code: string; hours: number }>;
+                const batMain = JSON.parse(existing.batteries_main || '[]') as Array<{ code: string; cycles: number }>;
+                const batSpare = JSON.parse(existing.batteries_spare || '[]') as Array<{ code: string; cycles: number }>;
+                const cameras = JSON.parse(existing.cameras || '[]') as Array<{ code: string; description?: string }>;
+                setValue('numMotors', motors.length || 0);
+                // Replace motors with HH:MM strings
+                replaceMotors((motors || []).map(m => ({ code: m.code || '', hours: minutesToHHMM(m.hours as any) })));
+                setValue('batteriesMain', batMain || []);
+                setValue('batteriesSpare', batSpare || []);
+                setValue('cameras', cameras || []);
+            } catch {}
+        };
+        loadExisting();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const onSubmit = async (data: AircraftFormData) => {
         try {

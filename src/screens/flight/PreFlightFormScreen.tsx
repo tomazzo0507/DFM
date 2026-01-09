@@ -10,6 +10,7 @@ import { Picker } from '../../components/ui/Picker';
 import { colors, spacing, typography } from '../../theme';
 import { db } from '../../db';
 import { Pilot, Aircraft } from '../../types';
+import * as Location from 'expo-location';
 
 const preFlightSchema = z.object({
     pilot: z.number().min(1, 'Requerido'),
@@ -77,6 +78,16 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
                 const pad = (n: number) => n.toString().padStart(2, '0');
                 setValue('date', `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`);
                 setValue('time', `${pad(now.getHours())}:${pad(now.getMinutes())}`);
+
+                // Autocompletar coordenadas con ubicación del dispositivo
+                try {
+                    const { status } = await Location.requestForegroundPermissionsAsync();
+                    if (status === 'granted') {
+                        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                        const fmt = (n: number) => n.toFixed(5);
+                        setValue('coordinates', `${fmt(pos.coords.latitude)}, ${fmt(pos.coords.longitude)}`);
+                    }
+                } catch {}
             } catch (error) {
                 console.error(error);
             }
@@ -138,7 +149,7 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
         })
         .map(p => ({ label: p.name, value: p.id }));
 
-    const cameraItems = aircraft ? aircraft.cameras.map(c => ({ label: c.code, value: c.id })) : [];
+    const cameraItems = aircraft ? aircraft.cameras.map(c => ({ label: c.code, value: c.code })) : [];
 
     const selectedCameras = watch('cameras') || [];
     const availableCameraItems = cameraItems.filter(ci => !selectedCameras.includes(String(ci.value)));
@@ -244,18 +255,24 @@ export const PreFlightFormScreen = ({ navigation, route }: any) => {
                         <View>
                             <Text style={{ ...(typography.body as TextStyle), marginBottom: 8 }}>Cámaras seleccionadas: {value?.length || 0}</Text>
                             {availableCameraItems.length > 0 && (
-                        <Picker
+                                <Picker
                                     label="Seleccionar cámara"
                                     items={availableCameraItems}
                                     value={undefined}
-                                    onValueChange={(v) => setValue('cameras', [ ...(value || []), String(v) ])}
+                                    onValueChange={(v) => {
+                                        const code = String(v || '');
+                                        if (!code) return;
+                                        const current = (value || []) as string[];
+                                        if (current.includes(code)) return;
+                                        setValue('cameras', [ ...current, code ]);
+                                    }}
                                 />
                             )}
                             {availableCameraItems.length === 0 && (
                                 <Text style={{ ...(typography.caption as TextStyle) }}>No hay más cámaras disponibles para agregar.</Text>
                             )}
-                            {value && value.length > 0 && value.map((cid: string) => (
-                                <View key={cid} style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical: 4 }}>
+                            {value && value.length > 0 && value.map((cid: string, idx: number) => (
+                                <View key={`${cid}-${idx}`} style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical: 4 }}>
                                     <Text style={{ ...(typography.body as TextStyle) }}>{cameraItems.find(ci => String(ci.value) === cid)?.label || cid}</Text>
                                     <TouchableOpacity onPress={() => setValue('cameras', (value as string[]).filter(x => x !== cid))}>
                                         <Text style={{ color: colors.secondary }}>Eliminar</Text>

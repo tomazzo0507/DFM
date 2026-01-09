@@ -8,9 +8,10 @@ export async function zipFilesBase64(files: Array<{ name: string; path: string }
 		zip.file(f.name, b64, { base64: true });
 	}
 	const content = await zip.generateAsync({ type: 'base64', compression: 'DEFLATE' });
+
 	const outFile = new FileSystem.File(outPath);
-	try { outFile.parentDirectory.create({ intermediates: true, idempotent: true }); } catch {}
-	outFile.write(content, { encoding: 'base64' });
+	try { await outFile.parentDirectory.create({ intermediates: true, idempotent: true }); } catch {}
+	await outFile.write(content, { encoding: 'base64' });
 	return outFile.uri;
 }
 

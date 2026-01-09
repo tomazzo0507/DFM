@@ -12,9 +12,6 @@
         "resizeMode": "contain",
         "backgroundColor": "#ffffff"
       },
-      "ios": {
-        "supportsTablet": true
-      },
       "android": {
         "adaptiveIcon": {
           "foregroundImage": "./assets/DFMlogo.png",
@@ -22,14 +19,25 @@
         },
         "edgeToEdgeEnabled": true,
         "predictiveBackGestureEnabled": false,
-        "package": "com.anonymous.DFM"
+        "package": "com.anonymous.DFM",
+        "permissions": [
+          "ACCESS_FINE_LOCATION",
+          "ACCESS_COARSE_LOCATION"
+        ]
       },
       "web": {
         "favicon": "./assets/favicon.png"
       },
       "plugins": [
         "expo-sqlite",
-        "expo-font"
-      ]
+        "expo-font",
+        "expo-location"
+      ],
+      "ios": {
+        "supportsTablet": true,
+        "infoPlist": {
+          "NSLocationWhenInUseUsageDescription": "La aplicación necesita su ubicación para autocompletar las coordenadas del prevuelo."
+        }
+      }
     }
   }
