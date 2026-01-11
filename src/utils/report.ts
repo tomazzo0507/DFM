@@ -3,16 +3,60 @@ import { Asset } from 'expo-asset';
 
 export async function getLogoBase64(): Promise<string | null> {
 	// Attempt to resolve CIAC logo from assets
+	// #region agent log
+	fetch('http://127.0.0.1:7242/ingest/709a9087-e502-4aa0-ab64-32ebb867cef1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4',location:'report.ts:getLogoBase64:entry',message:'enter getLogoBase64 using Asset.fromModule',data:{},timestamp:Date.now()})}).catch(()=>{});
+	// #endregion
+	
 	try {
-		const asset = Asset.fromModule(require('../../assets/ciac logo.png'));
+		// FIX: Use Asset.fromModule directly - should work now that filename has no spaces
+		const requireResult = require('../../assets/ciac_logo.png');
+		
+		// #region agent log
+		fetch('http://127.0.0.1:7242/ingest/709a9087-e502-4aa0-ab64-32ebb867cef1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4',location:'report.ts:getLogoBase64:requireResult',message:'require result',data:{requireResult:JSON.stringify(requireResult)},timestamp:Date.now()})}).catch(()=>{});
+		// #endregion
+		
+		// Use Asset.fromModule directly (compatible with all Expo versions)
+		const asset = Asset.fromModule(requireResult);
+		
+		// #region agent log
+		fetch('http://127.0.0.1:7242/ingest/709a9087-e502-4aa0-ab64-32ebb867cef1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4',location:'report.ts:getLogoBase64:assetFromModule',message:'asset created from module',data:{assetUri:asset.uri},timestamp:Date.now()})}).catch(()=>{});
+		// #endregion
+		
+		// #region agent log
+		fetch('http://127.0.0.1:7242/ingest/709a9087-e502-4aa0-ab64-32ebb867cef1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4',location:'report.ts:getLogoBase64:beforeDownloadAsync',message:'before downloadAsync',data:{assetUri:asset.uri},timestamp:Date.now()})}).catch(()=>{});
+		// #endregion
+		
 		await asset.downloadAsync();
+		
+		// #region agent log
+		fetch('http://127.0.0.1:7242/ingest/709a9087-e502-4aa0-ab64-32ebb867cef1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4',location:'report.ts:getLogoBase64:afterDownloadAsync',message:'after downloadAsync',data:{localUri:asset.localUri},timestamp:Date.now()})}).catch(()=>{});
+		// #endregion
+		
 		if (asset.localUri) {
 			const b64 = await new FileSystem.File(asset.localUri).base64();
+			// #region agent log
+			fetch('http://127.0.0.1:7242/ingest/709a9087-e502-4aa0-ab64-32ebb867cef1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4',location:'report.ts:getLogoBase64:success',message:'logo loaded successfully',data:{base64Length:b64.length},timestamp:Date.now()})}).catch(()=>{});
+			// #endregion
 			return `data:image/png;base64,${b64}`;
 		}
-	} catch {
-		// ignore
+	} catch (error) {
+		// #region agent log
+		const errorDetails = {
+			message: error instanceof Error ? error.message : String(error),
+			stack: error instanceof Error ? error.stack : undefined,
+			errorType: error?.constructor?.name,
+			errorString: String(error)
+		};
+		fetch('http://127.0.0.1:7242/ingest/709a9087-e502-4aa0-ab64-32ebb867cef1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4',location:'report.ts:getLogoBase64:error',message:'error loading logo',data:errorDetails,timestamp:Date.now()})}).catch(()=>{});
+		// #endregion
+		
+		// Log error but don't fail PDF generation - logo is optional
+		console.warn('Failed to load CIAC logo for PDF:', error instanceof Error ? error.message : String(error));
 	}
+	
+	// #region agent log
+	fetch('http://127.0.0.1:7242/ingest/709a9087-e502-4aa0-ab64-32ebb867cef1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix',hypothesisId:'H4',location:'report.ts:getLogoBase64:exit',message:'exit getLogoBase64 returning null',data:{},timestamp:Date.now()})}).catch(()=>{});
+	// #endregion
 	return null;
 }
 
@@ -109,6 +153,22 @@ th, td { border: 1px solid black; vertical-align: middle; padding: 4px; word-wra
 `;
 
 export function wrapReportHTML(bodyInner: string, logoDataUrl: string | null): string {
+	// CRITICAL FIX: Remove logo references if logo is not available
+	// This prevents broken image references that can break PDF generation
+	let processedBody = bodyInner;
+	if (!logoDataUrl) {
+		// Remove all logo img tags completely if logo is not available
+		processedBody = processedBody.replace(/<img[^>]*class="logo"[^>]*>/g, '');
+		// Remove logo img tags by src attribute as well
+		processedBody = processedBody.replace(/<img[^>]*src="[^"]*ciac_logo[^"]*"[^>]*>/g, '');
+		// Replace empty img-cell td with empty td
+		processedBody = processedBody.replace(/<td[^>]*class="[^"]*img-cell[^"]*"[^>]*>[\s\S]*?<\/td>/g, '<td class="col1"></td>');
+	} else {
+		// Replace logo references with data URL
+		processedBody = processedBody.replaceAll('/assets/ciac_logo.png', logoDataUrl);
+		processedBody = processedBody.replace(/src="[^"]*ciac_logo[^"]*"/g, `src="${logoDataUrl}"`);
+	}
+	
 	return `
 <!DOCTYPE html>
 <html lang="es">
@@ -117,10 +177,38 @@ export function wrapReportHTML(bodyInner: string, logoDataUrl: string | null): s
   <style>${REPORT_CSS}</style>
 </head>
 <body>
-  ${bodyInner.replaceAll('/assets/ciac logo.png', logoDataUrl || '/assets/ciac logo.png')}
+  ${processedBody}
   <br class="page-break">
 </body>
 </html>`;
+}
+
+/**
+ * Sanitizes a base64 data URI for safe use in HTML
+ * Returns null if the signature is invalid
+ */
+export function sanitizeSignature(signature: string | null | undefined): string | null {
+	if (!signature || typeof signature !== 'string') return null;
+	
+	// Check if it's a valid data URI
+	if (!signature.startsWith('data:image/')) return null;
+	
+	// Extract base64 part
+	const base64Match = signature.match(/data:image\/[^;]+;base64,(.+)/);
+	if (!base64Match || !base64Match[1]) return null;
+	
+	const base64Data = base64Match[1];
+	
+	// Validate base64 characters (alphanumeric, +, /, =)
+	if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) return null;
+	
+	// Limit size (prevent extremely large signatures from breaking PDF)
+	if (base64Data.length > 500000) { // ~375KB
+		console.warn('Signature too large, truncating');
+		return signature.substring(0, 100000); // Keep first part
+	}
+	
+	return signature;
 }
 
 

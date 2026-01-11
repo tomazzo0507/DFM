@@ -12,7 +12,7 @@ import { db } from '../../db';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system';
 import * as FSLegacy from 'expo-file-system/legacy';
-import { getLogoBase64, wrapReportHTML } from '../../utils/report';
+import { getLogoBase64, wrapReportHTML, sanitizeSignature } from '../../utils/report';
 import { db as database } from '../../db';
 
 const postFlightSchema = z.object({
@@ -74,36 +74,163 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
         }
     };
 
+    // CRITICAL FIX: Minimal HTML fallback for PDF generation
+    const buildMinimalHTML = (data: PostFlightFormData, flightRow: any, aircraft: any, crew: any, safeSignatures: { [key: string]: string }) => {
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const durSec = flightRow.duration || 0;
+        const durMin = Math.floor(durSec / 60);
+        const formatLocalTime = (iso?: string) => {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        };
+        
+        return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+    h1 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+    th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+    th { background-color: #ddd; }
+  </style>
+</head>
+<body>
+  <h1>DRAGOM FLIGHT MANAGER - REPORTE DE VUELO</h1>
+  <h2>Vuelo ID: ${flightRow.id || 'N/A'}</h2>
+  <table>
+    <tr><th>Fecha</th><td>${flightRow.date ? new Date(flightRow.date).toLocaleDateString() : 'N/A'}</td></tr>
+    <tr><th>Tipo</th><td>${flightRow.type || 'N/A'}</td></tr>
+    <tr><th>Duración</th><td>${durMin} minutos</td></tr>
+    <tr><th>Hora despegue</th><td>${flightRow.start_time ? formatLocalTime(flightRow.start_time) : 'N/A'}</td></tr>
+    <tr><th>Hora aterrizaje</th><td>${flightRow.end_time ? formatLocalTime(flightRow.end_time) : 'N/A'}</td></tr>
+  </table>
+  <h3>Estado Post-Vuelo</h3>
+  <p>${data.status || 'N/A'}</p>
+  ${data.notes ? `<h3>Notas</h3><p>${data.notes}</p>` : ''}
+  <h3>Firmas</h3>
+  <p>Piloto: ${safeSignatures['Piloto'] ? 'Firmado' : 'No firmado'}</p>
+  ${crew?.missionLeader ? `<p>Líder de Misión: ${safeSignatures['Líder de Misión'] ? 'Firmado' : 'No firmado'}</p>` : ''}
+  ${crew?.flightEngineer ? `<p>Ingeniero de Vuelo: ${safeSignatures['Ingeniero de Vuelo'] ? 'Firmado' : 'No firmado'}</p>` : ''}
+</body>
+</html>`;
+    };
+
     const generatePDF = async (data: PostFlightFormData, flightRow: any) => {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'PostFlightFormScreen:generatePDF:entry',message:'enter generatePDF',data:{pdfName:data.pdfName,flightId,flightType:flightRow?.type},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
+        
+        // CRITICAL FIX: Validate flightRow parameter
+        if (!flightRow) {
+            throw new Error('flightRow is null or undefined');
+        }
+        
+        // CRITICAL FIX: Validate type before proceeding
+        const type = flightRow.type;
+        if (!type) {
+            throw new Error('Flight type is required but missing in flightRow');
+        }
+        
         // Fetch aircraft and pilots
         const aircraftRow: any = await database.getFirstAsync('SELECT * FROM aircraft LIMIT 1');
-        const aircraft = aircraftRow
-            ? {
+        let aircraft = null;
+        
+        if (aircraftRow) {
+            // CRITICAL FIX: Safe JSON parsing for aircraft data
+            let motors: Array<{ id: string; code: string; hours: number }> = [];
+            let batteriesMain: Array<{ id: string; code: string; cycles: number }> = [];
+            let batteriesSpare: Array<{ id: string; code: string; cycles: number }> = [];
+            
+            try {
+                motors = JSON.parse(aircraftRow.motors || '[]');
+                if (!Array.isArray(motors)) motors = [];
+            } catch (e) {
+                console.error('Error parsing aircraft motors JSON:', e);
+            }
+            
+            try {
+                batteriesMain = JSON.parse(aircraftRow.batteries_main || '[]');
+                if (!Array.isArray(batteriesMain)) batteriesMain = [];
+            } catch (e) {
+                console.error('Error parsing aircraft batteries_main JSON:', e);
+            }
+            
+            try {
+                batteriesSpare = JSON.parse(aircraftRow.batteries_spare || '[]');
+                if (!Array.isArray(batteriesSpare)) batteriesSpare = [];
+            } catch (e) {
+                console.error('Error parsing aircraft batteries_spare JSON:', e);
+            }
+            
+            aircraft = {
                 partNum: aircraftRow.part_num || '',
                 serialNum: aircraftRow.serial_num || '',
                 totalHours: aircraftRow.total_hours || 0,
-                motors: JSON.parse(aircraftRow.motors || '[]') as Array<{ id: string; code: string; hours: number }>,
-                batteriesMain: JSON.parse(aircraftRow.batteries_main || '[]') as Array<{ id: string; code: string; cycles: number }>,
-                batteriesSpare: JSON.parse(aircraftRow.batteries_spare || '[]') as Array<{ id: string; code: string; cycles: number }>,
-              }
-            : null;
+                motors,
+                batteriesMain,
+                batteriesSpare,
+            };
+        }
 
-        const crew = flightRow.crew ? JSON.parse(flightRow.crew) : {};
-        const equipment = flightRow.equipment ? JSON.parse(flightRow.equipment) : { batteries: '', cameras: [] };
-        const prev = flightRow.prevuelo ? JSON.parse(flightRow.prevuelo) : {};
-        const carga = flightRow.carga ? JSON.parse(flightRow.carga) : {};
-        const fases = flightRow.fases ? JSON.parse(flightRow.fases) : [];
-        const type = flightRow.type;
+        // CRITICAL FIX: Safe JSON parsing with error handling
+        let crew: any = {};
+        let equipment: any = { batteries: '', cameras: [] };
+        let prev: any = {};
+        let carga: any = {};
+        let fases: any[] = [];
+        
+        try {
+            crew = flightRow.crew ? JSON.parse(flightRow.crew) : {};
+        } catch (e) {
+            console.error('Error parsing crew JSON:', e);
+        }
+        
+        try {
+            equipment = flightRow.equipment ? JSON.parse(flightRow.equipment) : { batteries: '', cameras: [] };
+        } catch (e) {
+            console.error('Error parsing equipment JSON:', e);
+        }
+        
+        try {
+            prev = flightRow.prevuelo ? JSON.parse(flightRow.prevuelo) : {};
+        } catch (e) {
+            console.error('Error parsing prevuelo JSON:', e);
+        }
+        
+        try {
+            carga = flightRow.carga ? JSON.parse(flightRow.carga) : {};
+        } catch (e) {
+            console.error('Error parsing carga JSON:', e);
+        }
+        
+        try {
+            fases = flightRow.fases ? JSON.parse(flightRow.fases) : [];
+            if (!Array.isArray(fases)) fases = [];
+        } catch (e) {
+            console.error('Error parsing fases JSON:', e);
+        }
+
+        // CRITICAL FIX: Ensure crew is always a valid object for template access
+        if (!crew || typeof crew !== 'object' || Array.isArray(crew)) {
+            crew = {};
+        }
 
         // Pilot names
-        const pilotIds: number[] = [crew.pilot].filter(Boolean);
+        // CRITICAL FIX: Safe access to crew.pilot with type checking
+        const pilotId = ('pilot' in crew) ? crew.pilot : null;
+        const pilotIds: number[] = pilotId ? [pilotId].filter((id): id is number => typeof id === 'number' && id > 0) : [];
         const idToName = new Map<number, string>();
         for (const pid of pilotIds) {
-            const row: any = await database.getFirstAsync('SELECT name FROM pilots WHERE id = ?', [pid]);
-            if (row?.name) idToName.set(pid, row.name);
+            try {
+                const row: any = await database.getFirstAsync('SELECT name FROM pilots WHERE id = ?', [pid]);
+                if (row?.name) idToName.set(pid, row.name);
+            } catch (e) {
+                console.error(`Error fetching pilot name for ID ${pid}:`, e);
+            }
         }
 
         // Helpers
@@ -162,14 +289,45 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
             }).join('<br/>');
         }
 
-        const logo = await getLogoBase64();
+        // CRITICAL FIX: Load logo asynchronously and non-blocking
+        // If logo fails, PDF generation continues without it
+        console.log('[PDF] Attempting to load logo...');
+        let logo: string | null = null;
+        try {
+            logo = await Promise.race([
+                getLogoBase64(),
+                new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 5000)) // 5s timeout
+            ]);
+            if (logo) {
+                console.log('[PDF] Logo loaded successfully');
+            } else {
+                console.log('[PDF] Logo not available (timeout or failed)');
+            }
+        } catch (e) {
+            console.warn('[PDF] Logo loading failed or timed out, continuing without logo:', e);
+            logo = null;
+        }
+        
+        // CRITICAL FIX: Sanitize all signatures before using in HTML
+        console.log('[PDF] Sanitizing signatures...', { signatureKeys: Object.keys(signatures) });
+        const safeSignatures: { [key: string]: string } = {};
+        for (const [key, sig] of Object.entries(signatures)) {
+            const sanitized = sanitizeSignature(sig as string);
+            if (sanitized) {
+                safeSignatures[key] = sanitized;
+                console.log(`[PDF] Signature for ${key} is valid`);
+            } else {
+                console.warn(`[PDF] Invalid signature for ${key}, will show as text only`);
+            }
+        }
+        console.log('[PDF] Sanitized signatures:', { safeKeys: Object.keys(safeSignatures) });
 
         // HTML Body with values filled
         const body = `
   <table>
     <tr>
       <td class="col1 img-cell">
-        <img class="logo" src="/assets/ciac logo.png" alt="Logo CIAC">
+        <img class="logo" src="/assets/ciac_logo.png" alt="Logo CIAC">
       </td>
       <td class="col2 center">
         <strong>
@@ -202,11 +360,11 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
 
     <tr><td colspan="3" class="gray">TRIPULACIÓN</td></tr>
     <tr>
-      <td><strong>Piloto</strong> <span id="pv_piloto">${idToName.get(crew.pilot) || ''}</span></td>
-      <td><strong>Líder de Misión</strong> <span id="pv_lider_mision">${crew.missionLeader || ''}</span></td>
+      <td><strong>Piloto</strong> <span id="pv_piloto">${idToName.get(crew?.pilot) || ''}</span></td>
+      <td><strong>Líder de Misión</strong> <span id="pv_lider_mision">${crew?.missionLeader || ''}</span></td>
     </tr>
     <tr>
-      <td><strong>Ing. de Vuelo</strong> <span id="pv_ing_vuelo">${crew.flightEngineer || ''}</span></td>
+      <td><strong>Ing. de Vuelo</strong> <span id="pv_ing_vuelo">${crew?.flightEngineer || ''}</span></td>
       <td></td><td></td>
     </tr>
 
@@ -229,7 +387,7 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
   <table>
     <tr>
       <td class="col1 img-cell">
-        <img class="logo" src="/assets/ciac logo.png" alt="Logo CIAC">
+        <img class="logo" src="/assets/ciac_logo.png" alt="Logo CIAC">
       </td>
       <td class="col2 center">
         <strong>
@@ -305,15 +463,15 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
     <tr class="row-compact"><td colspan="3" class="no-padding">
       <table class="signatures-simple">
         <tr>
-          <td class="firmas" id="firma_piloto">${signatures['Piloto'] ? `<img src="${signatures['Piloto']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
-          <td class="firmas" id="firma_lider">${crew.missionLeader && signatures['Líder de Misión'] ? `<img src="${signatures['Líder de Misión']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
-          <td class="firmas" id="firma_ing_vuelo">${crew.flightEngineer && signatures['Ingeniero de Vuelo'] ? `<img src="${signatures['Ingeniero de Vuelo']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
+          <td class="firmas" id="firma_piloto">${safeSignatures['Piloto'] ? `<img src="${safeSignatures['Piloto']}" style="max-width:100%;max-height:100%"/>` : '<span style="color:#999;">Firma requerida</span>'}</td>
+          <td class="firmas" id="firma_lider">${crew?.missionLeader && safeSignatures['Líder de Misión'] ? `<img src="${safeSignatures['Líder de Misión']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
+          <td class="firmas" id="firma_ing_vuelo">${crew?.flightEngineer && safeSignatures['Ingeniero de Vuelo'] ? `<img src="${safeSignatures['Ingeniero de Vuelo']}" style="max-width:100%;max-height:100%"/>` : ''}</td>
           <td class="firmas"></td>
         </tr>
         <tr>
-          <td><strong>Nombre:</strong> <span id="nombre_piloto">${idToName.get(crew.pilot) || ''}</span></td>
-          <td><strong>Nombre:</strong> <span id="nombre_lider">${crew.missionLeader || ''}</span></td>
-          <td><strong>Nombre:</strong> <span id="nombre_ing_vuelo">${crew.flightEngineer || ''}</span></td>
+          <td><strong>Nombre:</strong> <span id="nombre_piloto">${idToName.get(crew?.pilot) || ''}</span></td>
+          <td><strong>Nombre:</strong> <span id="nombre_lider">${crew?.missionLeader || ''}</span></td>
+          <td><strong>Nombre:</strong> <span id="nombre_ing_vuelo">${crew?.flightEngineer || ''}</span></td>
           <td></td>
         </tr>
         <tr>
@@ -329,7 +487,44 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
 
         const html = wrapReportHTML(body, logo);
 
-        const { uri } = await Print.printToFileAsync({ html });
+        // CRITICAL FIX: Generate PDF with timeout and fallback
+        let uri: string;
+        try {
+            console.log('[PDF] Attempting to generate PDF with full HTML...');
+            // Try with full HTML first, with timeout
+            const pdfPromise = Print.printToFileAsync({ html });
+            const timeoutPromise = new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error('PDF generation timeout after 30s')), 30000)
+            );
+            
+            const result = await Promise.race([pdfPromise, timeoutPromise]);
+            
+            if (!result || !result.uri) {
+                throw new Error('printToFileAsync returned invalid result: missing uri');
+            }
+            uri = result.uri;
+            console.log('[PDF] PDF generated successfully with full HTML:', uri);
+        } catch (e) {
+            // CRITICAL FIX: Fallback to minimal HTML if full HTML fails
+            console.warn('[PDF] Full HTML PDF generation failed, trying minimal HTML:', e);
+            
+            try {
+                console.log('[PDF] Attempting to generate PDF with minimal HTML...');
+                const minimalHTML = buildMinimalHTML(data, flightRow, aircraft, crew, safeSignatures);
+                const result = await Print.printToFileAsync({ html: minimalHTML });
+                if (!result || !result.uri) {
+                    throw new Error('Minimal HTML PDF generation also failed');
+                }
+                uri = result.uri;
+                console.log('[PDF] PDF generated successfully with minimal HTML:', uri);
+            } catch (fallbackError) {
+                const errorMsg = e instanceof Error ? e.message : String(e);
+                const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+                console.error('[PDF] Both full and minimal HTML PDF generation failed:', { original: errorMsg, fallback: fallbackMsg });
+                throw new Error(`Failed to generate PDF: ${errorMsg}. Fallback also failed: ${fallbackMsg}`);
+            }
+        }
+        
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'PostFlightFormScreen:generatePDF:printed',message:'printToFileAsync returned',data:{tempUri:uri},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
@@ -337,35 +532,61 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
         // Normalize pdf name: underscores, 150 chars
         const normalized = data.pdfName.replace(/\s+/g, '_').slice(0, 150);
 
+        // CRITICAL FIX: Validate type is defined before using it in path
+        if (!type || typeof type !== 'string') {
+            throw new Error(`Invalid flight type: ${type}. Cannot create PDF directory.`);
+        }
+
         // Try new FS API first
         try {
+            console.log('[PDF] Attempting to save PDF using new FS API...', { type, normalized });
             const dir = new FileSystem.Directory(FileSystem.Paths.document, 'DFM', 'Bitacora', type);
-            try { await dir.create({ intermediates: true, idempotent: true }); } catch {}
+            try { await dir.create({ intermediates: true, idempotent: true }); } catch (e) {
+                console.error('[PDF] Error creating directory:', e);
+            }
             const destFile = new FileSystem.File(dir, `${normalized}.pdf`);
+            console.log('[PDF] Destination file path:', destFile.uri);
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'PostFlightFormScreen:generatePDF:newFS:beforeMove',message:'moving with new FS API',data:{destUri:destFile.uri},timestamp:Date.now()})}).catch(()=>{});
             // #endregion
             await new FileSystem.File(uri).move(destFile);
+            console.log('[PDF] PDF moved successfully with new FS API:', destFile.uri);
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'PostFlightFormScreen:generatePDF:newFS:afterMove',message:'moved with new FS API',data:{finalUri:destFile.uri},timestamp:Date.now()})}).catch(()=>{});
             // #endregion
             return destFile.uri;
         } catch (e) {
+            console.warn('[PDF] New FS API failed, falling back to legacy FS API:', e);
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'PostFlightFormScreen:generatePDF:newFS:error',message:'new FS move failed',data:{error:String((e as any)?.message||(e as any))},timestamp:Date.now()})}).catch(()=>{});
             // #endregion
             // Fallback to legacy FS API
             const baseDir = (FSLegacy.documentDirectory || '') + `DFM/Bitacora/${type}`;
-            try { await FSLegacy.makeDirectoryAsync(baseDir, { intermediates: true }); } catch {}
+            console.log('[PDF] Attempting to save PDF using legacy FS API...', { baseDir, normalized });
+            try { 
+                await FSLegacy.makeDirectoryAsync(baseDir, { intermediates: true }); 
+            } catch (dirError) {
+                console.error('[PDF] Error creating legacy directory:', dirError);
+                // Continue anyway - directory might already exist
+            }
             const destPath = `${baseDir}/${normalized}.pdf`;
+            console.log('[PDF] Legacy destination path:', destPath);
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H5',location:'PostFlightFormScreen:generatePDF:legacy:beforeMove',message:'moving with legacy FS API',data:{destPath},timestamp:Date.now()})}).catch(()=>{});
             // #endregion
-            await FSLegacy.moveAsync({ from: uri, to: destPath });
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H5',location:'PostFlightFormScreen:generatePDF:legacy:afterMove',message:'moved with legacy FS API',data:{finalUri:destPath},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
-            return destPath;
+            try {
+                await FSLegacy.moveAsync({ from: uri, to: destPath });
+                console.log('[PDF] PDF moved successfully with legacy FS API:', destPath);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H5',location:'PostFlightFormScreen:generatePDF:legacy:afterMove',message:'moved with legacy FS API',data:{finalUri:destPath},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+                return destPath;
+            } catch (legacyError) {
+                // CRITICAL FIX: If both FS APIs fail, throw error instead of returning invalid path
+                const errorMsg = legacyError instanceof Error ? legacyError.message : String(legacyError);
+                console.error('[PDF] Both new and legacy FS APIs failed:', { newFSError: e, legacyError });
+                throw new Error(`Failed to save PDF file: New FS API failed (${String(e)}), Legacy FS API also failed (${errorMsg})`);
+            }
         }
     };
 
@@ -378,10 +599,37 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
         }
 
         try {
+            console.log('[PDF] Starting PDF generation process...');
+            
             // Fetch full flight data for PDF
-            const flightRes = await db.getFirstAsync('SELECT * FROM flights WHERE id = ?', [flightId]);
+            const flightRes: any = await db.getFirstAsync('SELECT * FROM flights WHERE id = ?', [flightId]);
+            
+            // CRITICAL FIX: Validate flightRes before proceeding
+            if (!flightRes) {
+                Alert.alert('Error', `Flight with ID ${flightId} not found in database`);
+                console.error(`[PDF] Flight not found: flightId=${flightId}`);
+                return;
+            }
 
+            // CRITICAL FIX: Validate required flight data
+            if (!flightRes.type) {
+                Alert.alert('Error', 'Flight type is missing. Cannot generate PDF.');
+                console.error('[PDF] Flight type missing:', flightRes);
+                return;
+            }
+
+            console.log('[PDF] Calling generatePDF...', { flightId, type: flightRes.type, pdfName: data.pdfName });
             const pdfPath = await generatePDF(data, flightRes);
+            console.log('[PDF] generatePDF returned:', pdfPath);
+            
+            // CRITICAL FIX: Validate pdfPath before saving to database
+            if (!pdfPath || typeof pdfPath !== 'string' || pdfPath.trim().length === 0) {
+                console.error('[PDF] Invalid pdfPath returned:', pdfPath);
+                throw new Error('PDF generation returned invalid path');
+            }
+            
+            console.log('[PDF] Saving pdfPath to database:', pdfPath);
+            
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/45b3dca9-a99d-4431-9c9a-0889feaa197e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H6',location:'PostFlightFormScreen:onSubmit:pdfPath',message:'pdf generated',data:{pdfPath},timestamp:Date.now()})}).catch(()=>{});
             // #endregion
@@ -395,12 +643,16 @@ export const PostFlightFormScreen = ({ navigation, route }: any) => {
                     flightId
                 ]
             );
+            
+            console.log('[PDF] PDF path saved to database successfully');
 
             // Navigate to PostFlight Checklist
             navigation.navigate('Checklist', { type: (flightRes as any).type, stage: 'PostFlight' });
         } catch (error) {
-            console.error(error);
-            Alert.alert('Error', 'Failed to save post-flight data');
+            console.error('[PDF] Error in onSubmit:', error);
+            console.error('[PDF] Error stack:', error instanceof Error ? error.stack : 'No stack');
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            Alert.alert('Error', `Failed to save post-flight data: ${errorMessage}`);
         }
     };
 

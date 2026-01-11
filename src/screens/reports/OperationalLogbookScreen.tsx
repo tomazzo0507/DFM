@@ -39,7 +39,15 @@ export const OperationalLogbookScreen = () => {
 								cargaStr = `Con carga${w ? ` - ${w} kg` : ''}`;
 							}
 						} catch {}
-						enriched.push({ ...row, pilotName, pilotCC, coords, cargaStr });
+						// CRITICAL FIX: Map pdf_path (DB) to pdfPath (TypeScript interface)
+						enriched.push({ 
+							...row, 
+							pdfPath: row.pdf_path, // Map database field to TypeScript interface
+							pilotName, 
+							pilotCC, 
+							coords, 
+							cargaStr 
+						});
 					}
 					setFlights(enriched as any);
 				} catch (error) {
@@ -51,15 +59,26 @@ export const OperationalLogbookScreen = () => {
 	);
 
 	const handleOpenPDF = async (pdfPath?: string) => {
+		console.log('[PDF] handleOpenPDF called with pdfPath:', pdfPath);
 		if (!pdfPath) {
+			console.warn('[PDF] No pdfPath provided');
 			Alert.alert('Error', 'No PDF available for this flight');
 			return;
 		}
+		
 		if (!(await Sharing.isAvailableAsync())) {
 			Alert.alert('Error', 'Sharing is not available on this device');
 			return;
 		}
-		await Sharing.shareAsync(pdfPath);
+		
+		try {
+			console.log('[PDF] Attempting to share PDF:', pdfPath);
+			await Sharing.shareAsync(pdfPath);
+			console.log('[PDF] PDF shared successfully');
+		} catch (error) {
+			console.error('[PDF] Error sharing PDF:', error);
+			Alert.alert('Error', `Failed to open PDF: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	};
 
 	const exportZIP = async () => {
